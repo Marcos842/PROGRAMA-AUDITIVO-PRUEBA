@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Transcriptor para Personas Sordas</title>
+    
+    <!-- Vincular archivo CSS -->
+    <link rel="stylesheet" href="estilo.css">
+</head>
+<body>
+    <div id="pantalla-principal">
+        <h1>🎤 Transcriptor en Vivo</h1>
+        
+        <div class="controles">
+            <button id="iniciar">▶️ Iniciar</button>
+            <button id="detener" class="detener">⏹️ Detener</button>
+            <button id="limpiar" class="limpiar">🗑️ Limpiar</button>
+            <button id="guardar">💾 Guardar</button>
+            <button id="exportar">📥 Exportar CSV</button>
+        </div>
+        
+        <div id="transcripcion">
+            <h2>Conversación:</h2>
+            <div id="texto-final"></div>
+            <div id="texto-temporal" class="temporal"></div>
+        </div>
+        
+        <div id="historial">
+            <div class="historial-header">
+                <h2>Historial guardado:</h2>
+                <button id="borrar-historial" class="borrar-historial">🗑️ Borrar Historial</button>
+            </div>
+            <div id="lista-conversaciones"></div>
+        </div>
+    </div>
+    
+    <div id="alertas-sonido">
+        🔔 ALERTA: Sonido detectado
+    </div>
+    
+    <!-- Vincular archivo JavaScript -->
+    <script src="app.js"></script>
+</body>
+</html>

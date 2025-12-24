@@ -1,0 +1,223 @@
+/* Estilos generales */
+body {
+    font-family: Arial, sans-serif;
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 20px;
+    background: #f5f5f5;
+}
+
+/* Pantalla principal */
+#pantalla-principal {
+    background: white;
+    border-radius: 10px;
+    padding: 30px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+}
+
+/* Alertas de sonido */
+#alertas-sonido {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: #ff4444;
+    color: white;
+    padding: 15px;
+    border-radius: 8px;
+    font-size: 20px;
+    font-weight: bold;
+    display: none;
+    animation: pulsar 1s infinite;
+    z-index: 1000;
+}
+
+@keyframes pulsar {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+/* Estilos de hablantes */
+.hablante {
+    margin: 15px 0;
+    padding: 15px;
+    border-left: 4px solid;
+    border-radius: 5px;
+}
+
+.hablante-a { 
+    border-color: #2196F3; 
+    background: #E3F2FD; 
+}
+
+.hablante-b { 
+    border-color: #4CAF50; 
+    background: #E8F5E9; 
+}
+
+.hablante-c { 
+    border-color: #FF9800; 
+    background: #FFF3E0; 
+}
+
+/* Texto temporal */
+.temporal {
+    color: #999;
+    font-style: italic;
+    padding: 10px;
+    background: #f9f9f9;
+    border-radius: 5px;
+    margin-top: 10px;
+}
+
+/* Botones */
+.controles {
+    margin: 20px 0;
+}
+
+button {
+    background: #2196F3;
+    color: white;
+    border: none;
+    padding: 15px 30px;
+    font-size: 18px;
+    border-radius: 5px;
+    cursor: pointer;
+    margin: 10px 5px;
+    transition: background 0.3s ease;
+}
+
+button:hover {
+    background: #1976D2;
+}
+
+button:active {
+    transform: scale(0.98);
+}
+
+button.detener {
+    background: #f44336;
+}
+
+button.detener:hover {
+    background: #d32f2f;
+}
+
+button.limpiar {
+    background: #9E9E9E;
+}
+
+button.limpiar:hover {
+    background: #757575;
+}
+
+button#guardar {
+    background: #4CAF50;
+}
+
+button#guardar:hover {
+    background: #388E3C;
+}
+
+button#exportar {
+    background: #FF9800;
+}
+
+button#exportar:hover {
+    background: #F57C00;
+}
+
+/* Transcripción */
+#transcripcion {
+    margin-top: 30px;
+    min-height: 200px;
+}
+
+#texto-final {
+    font-size: 18px;
+    line-height: 1.6;
+}
+
+/* Tiempo */
+.tiempo {
+    color: #666;
+    font-size: 12px;
+    font-weight: bold;
+    margin-right: 10px;
+}
+
+/* Historial */
+#historial {
+    margin-top: 40px;
+    border-top: 2px solid #e0e0e0;
+    padding-top: 20px;
+}
+
+.historial-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+}
+
+.historial-header h2 {
+    margin: 0;
+}
+
+button.borrar-historial {
+    background: #E91E63;
+    padding: 10px 20px;
+    font-size: 14px;
+}
+
+button.borrar-historial:hover {
+    background: #C2185B;
+}
+
+.conversacion-item {
+    background: #f5f5f5;
+    padding: 10px;
+    margin: 10px 0;
+    border-radius: 5px;
+    font-size: 14px;
+}
+
+.conversacion-item .fecha {
+    color: #666;
+    font-size: 12px;
+}
+
+/* Responsive */
+@media (max-width: 600px) {
+    body {
+        padding: 10px;
+    }
+    
+    #pantalla-principal {
+        padding: 15px;
+    }
+    
+    button {
+        padding: 10px 20px;
+        font-size: 16px;
+        display: block;
+        width: 100%;
+        margin: 5px 0;
+    }
+    
+    .historial-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    
+    button.borrar-historial {
+        width: 100%;
+        margin-top: 10px;
+    }
+    
+    #alertas-sonido {
+        top: 10px;
+        right: 10px;
+        left: 10px;
+        text-align: center;
+    }
+}
