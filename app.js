@@ -16,7 +16,6 @@ const database = firebase.database();
 let recognition;
 let isRecording = false;
 let db = { conversaciones: [] };
-let resultadoProcesado = 0;
 let hablanteActual = 'a';
 let codigoSalaActual = null;
 let salaRef = null;
@@ -25,8 +24,8 @@ let miPresenciaKey = null;
 let misTimestamps = new Set();
 let ultimoTextoEnviado = '';
 let ultimoTimestampLocal = 0;
-let textoEnProceso = ''; // ✅ NUEVO: Almacenar texto temporal
-let debounceTimer = null; // ✅ NUEVO: Timer para debounce
+let debounceTimer = null;
+let textoAcumulado = ''; // ✅ NUEVO: Para acumular correctamente
 
 // Inicializar cuando carga la página
 document.addEventListener('DOMContentLoaded', function() {
@@ -76,7 +75,7 @@ function conectarSala() {
     misTimestamps.clear();
     ultimoTextoEnviado = '';
     ultimoTimestampLocal = 0;
-    textoEnProceso = '';
+    textoAcumulado = '';
     if (debounceTimer) clearTimeout(debounceTimer);
     
     codigoSalaActual = codigoSala;
@@ -163,7 +162,7 @@ function desconectarSala() {
     misTimestamps.clear();
     ultimoTextoEnviado = '';
     ultimoTimestampLocal = 0;
-    textoEnProceso = '';
+    textoAcumulado = '';
     if (debounceTimer) clearTimeout(debounceTimer);
     
     document.getElementById('conectar-sala').style.display = 'inline-block';
@@ -282,10 +281,10 @@ function inicializarReconocimiento() {
         recognition.onend = function() {
             console.log('🔄 Reconocimiento terminado');
             
-            // ✅ NUEVO: Procesar texto pendiente antes de reiniciar
-            if (textoEnProceso && textoEnProceso.trim()) {
-                procesarTextoFinal(textoEnProceso);
-                textoEnProceso = '';
+            // Procesar texto acumulado antes de reiniciar
+            if (textoAcumulado && textoAcumulado.trim()) {
+                procesarTextoFinal(textoAcumulado);
+                textoAcumulado = '';
             }
             
             if (isRecording) {
@@ -299,12 +298,13 @@ function inicializarReconocimiento() {
                         document.getElementById('iniciar').textContent = '▶️ Iniciar';
                         document.getElementById('iniciar').style.background = '#2196F3';
                     }
-                }, 500); // Pausa de 500ms
+                }, 500);
             }
         };
         
         recognition.onstart = function() {
             console.log('▶️ Reconocimiento iniciado');
+            textoAcumulado = ''; // ✅ Limpiar al iniciar
         };
         
         recognition.onerror = function(event) {
@@ -335,65 +335,57 @@ function inicializarReconocimiento() {
     }
 }
 
-// ✅ MEJORADO: Manejar resultados de transcripción
+// ✅ CORREGIDO: Manejar resultados de transcripción
 function manejarResultados(event) {
-    let textoTemporal = '';
-    let textoFinalNuevo = '';
+    // ✅ TOMAR SOLO EL ÚLTIMO RESULTADO (el más reciente)
+    const ultimoIndice = event.results.length - 1;
+    const ultimoResultado = event.results[ultimoIndice];
+    const texto = ultimoResultado[0].transcript;
     
-    // Procesar todos los resultados
-    for (let i = 0; i < event.results.length; i++) {
-        const resultado = event.results[i];
-        const texto = resultado[0].transcript.trim();
-        
-        if (resultado.isFinal) {
-            // ✅ NUEVO: Acumular texto final
-            textoFinalNuevo += texto + ' ';
-        } else {
-            textoTemporal += texto + ' ';
-        }
-    }
-    
-    // Mostrar texto temporal
-    if (textoTemporal.trim()) {
-        document.getElementById('texto-temporal').innerHTML = 
-            `<span class="temporal">🎤 Escuchando: ${textoTemporal.trim()}</span>`;
-    } else {
-        document.getElementById('texto-temporal').innerHTML = '';
-    }
-    
-    // ✅ NUEVO: Solo procesar texto final con debounce
-    if (textoFinalNuevo.trim()) {
-        textoEnProceso = textoFinalNuevo.trim();
+    if (ultimoResultado.isFinal) {
+        // ✅ Es texto FINAL, acumular para enviar
+        console.log('📝 Texto final recibido:', texto);
+        textoAcumulado = texto;
         
         // Cancelar timer anterior
         if (debounceTimer) {
             clearTimeout(debounceTimer);
         }
         
-        // ✅ NUEVO: Esperar 1 segundo antes de enviar (debounce)
+        // Esperar 1 segundo antes de procesar
         debounceTimer = setTimeout(() => {
-            procesarTextoFinal(textoEnProceso);
-            textoEnProceso = '';
-        }, 1000); // 1 segundo de espera
+            if (textoAcumulado && textoAcumulado.trim()) {
+                procesarTextoFinal(textoAcumulado);
+                textoAcumulado = '';
+            }
+        }, 1000);
+        
+        // Limpiar texto temporal
+        document.getElementById('texto-temporal').innerHTML = '';
+        
+    } else {
+        // ✅ Es texto TEMPORAL, solo mostrar
+        document.getElementById('texto-temporal').innerHTML = 
+            `<span class="temporal">🎤 Escuchando: ${texto}</span>`;
     }
 }
 
-// ✅ NUEVA FUNCIÓN: Procesar texto final con validaciones
+// ✅ MEJORADA: Procesar texto final con validaciones
 function procesarTextoFinal(texto) {
     if (!texto || texto.length === 0) return;
     
     // Limpiar espacios extras
     texto = texto.trim().replace(/\s+/g, ' ');
     
-    // ✅ Verificar si es muy similar al anterior (contenido)
+    // ✅ Verificar si es muy similar al anterior
     if (ultimoTextoEnviado && esSimilar(texto, ultimoTextoEnviado)) {
         console.log('⚠️ Texto similar bloqueado:', texto);
         return;
     }
     
-    // ✅ Verificar timing (al menos 800ms de diferencia)
+    // ✅ Verificar timing (al menos 1 segundo de diferencia)
     const ahora = Date.now();
-    if (ahora - ultimoTimestampLocal < 800) {
+    if (ahora - ultimoTimestampLocal < 1000) {
         console.log('⚠️ Mensaje muy rápido bloqueado');
         return;
     }
@@ -405,31 +397,28 @@ function procesarTextoFinal(texto) {
     agregarTexto(texto, hablanteActual, true);
 }
 
-// ✅ NUEVA FUNCIÓN: Verificar similitud entre textos
+// ✅ Verificar similitud entre textos
 function esSimilar(texto1, texto2) {
-    // Normalizar textos
     const t1 = texto1.toLowerCase().trim();
     const t2 = texto2.toLowerCase().trim();
     
     // Si son exactamente iguales
     if (t1 === t2) return true;
     
-    // Si uno contiene al otro (ej: "hola" está en "hola hola")
+    // Si uno contiene al otro
     if (t1.includes(t2) || t2.includes(t1)) return true;
     
-    // Si la diferencia es solo unas pocas palabras
+    // Comparar palabras
     const palabras1 = t1.split(' ');
     const palabras2 = t2.split(' ');
     const diferencia = Math.abs(palabras1.length - palabras2.length);
     
     if (diferencia <= 2) {
-        // Contar palabras en común
         let comunes = 0;
         palabras1.forEach(p => {
             if (palabras2.includes(p)) comunes++;
         });
         
-        // Si más del 70% son iguales
         const similitud = comunes / Math.max(palabras1.length, palabras2.length);
         if (similitud > 0.7) return true;
     }
@@ -514,10 +503,9 @@ function mostrarHistorial() {
 function limpiarConversacion() {
     document.getElementById('texto-final').innerHTML = '';
     document.getElementById('texto-temporal').innerHTML = '';
-    resultadoProcesado = 0;
     ultimoTextoEnviado = '';
     ultimoTimestampLocal = 0;
-    textoEnProceso = '';
+    textoAcumulado = '';
     if (debounceTimer) clearTimeout(debounceTimer);
     mostrarAlerta('Conversación limpiada', 'success');
 }
@@ -573,11 +561,9 @@ function configurarBotones() {
     // Botón Iniciar
     document.getElementById('iniciar').addEventListener('click', function() {
         if (!isRecording) {
-            // ✅ Resetear TODO
-            resultadoProcesado = 0;
             ultimoTextoEnviado = '';
             ultimoTimestampLocal = 0;
-            textoEnProceso = '';
+            textoAcumulado = '';
             if (debounceTimer) clearTimeout(debounceTimer);
             
             try {
@@ -596,19 +582,18 @@ function configurarBotones() {
     // Botón Detener
     document.getElementById('detener').addEventListener('click', function() {
         if (isRecording) {
-            // ✅ Procesar texto pendiente
-            if (textoEnProceso && textoEnProceso.trim()) {
-                procesarTextoFinal(textoEnProceso);
+            // Procesar texto pendiente
+            if (textoAcumulado && textoAcumulado.trim()) {
+                procesarTextoFinal(textoAcumulado);
             }
             
             if (debounceTimer) clearTimeout(debounceTimer);
             
             recognition.stop();
             isRecording = false;
-            resultadoProcesado = 0;
             ultimoTextoEnviado = '';
             ultimoTimestampLocal = 0;
-            textoEnProceso = '';
+            textoAcumulado = '';
             
             document.getElementById('iniciar').textContent = '▶️ Iniciar';
             document.getElementById('iniciar').style.background = '#2196F3';
