@@ -1,4 +1,5 @@
 /* Estilos generales */
+
 body {
     font-family: Arial, sans-serif;
     max-width: 800px;
@@ -113,6 +114,66 @@ button.desconectar:hover {
     font-size: 16px;
 }
 
+/* Compartir Pantalla */
+.compartir-pantalla-section {
+    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+    padding: 20px;
+    border-radius: 10px;
+    margin-bottom: 20px;
+    color: white;
+}
+
+.compartir-pantalla-section h3 {
+    margin-top: 0;
+    margin-bottom: 15px;
+}
+
+.compartir-pantalla-section h4 {
+    margin: 10px 0 5px 0;
+    font-size: 14px;
+}
+
+.btn-screen {
+    background: #2196F3;
+    color: white;
+    padding: 12px 24px;
+    border: none;
+    border-radius: 5px;
+    font-size: 16px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.btn-screen:hover {
+    background: #1976D2;
+    transform: translateY(-2px);
+}
+
+.btn-stop-screen {
+    background: #f44336;
+    color: white;
+    padding: 12px 24px;
+    border: none;
+    border-radius: 5px;
+    font-size: 16px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.btn-stop-screen:hover {
+    background: #d32f2f;
+    transform: translateY(-2px);
+}
+
+video {
+    width: 100%;
+    max-width: 100%;
+    border: 3px solid rgba(255,255,255,0.5);
+    border-radius: 8px;
+    background: #000;
+    display: block;
+}
+
 /* Configuración de Hablantes */
 .config-hablantes {
     background: #f0f0f0;
@@ -205,19 +266,19 @@ button.desconectar:hover {
     to { opacity: 1; transform: translateY(0); }
 }
 
-.hablante-a { 
-    border-color: #2196F3; 
-    background: #E3F2FD; 
+.hablante-a {
+    border-color: #2196F3;
+    background: #E3F2FD;
 }
 
-.hablante-b { 
-    border-color: #4CAF50; 
-    background: #E8F5E9; 
+.hablante-b {
+    border-color: #4CAF50;
+    background: #E8F5E9;
 }
 
-.hablante-c { 
-    border-color: #FF9800; 
-    background: #FFF3E0; 
+.hablante-c {
+    border-color: #FF9800;
+    background: #FFF3E0;
 }
 
 /* Texto temporal */
@@ -367,68 +428,72 @@ button.borrar-historial:hover {
     body {
         padding: 10px;
     }
-    
+
     #pantalla-principal {
         padding: 15px;
     }
-    
+
     .sala-compartida {
         padding: 15px;
     }
-    
+
     .codigo-sala {
         flex-direction: column;
         align-items: stretch;
     }
-    
+
     .codigo-sala label {
         margin-top: 10px;
     }
-    
+
     .codigo-sala input {
         width: 100%;
         min-width: 100%;
     }
-    
+
+    .compartir-pantalla-section {
+        padding: 15px;
+    }
+
     .config-hablantes {
         padding: 15px;
     }
-    
+
     .inputs-hablantes {
         flex-direction: column;
     }
-    
+
     .inputs-hablantes input {
         width: 100%;
         min-width: 100%;
     }
-    
+
     #hablante-actual {
         font-size: 16px;
         padding: 12px;
     }
-    
+
     .controles {
         flex-direction: column;
     }
-    
+
     button {
         padding: 12px 20px;
         font-size: 16px;
         width: 100%;
         margin: 5px 0;
     }
-    
+
     .historial-header {
         flex-direction: column;
         align-items: flex-start;
     }
-    
+
     button.borrar-historial {
         width: 100%;
         margin-top: 10px;
     }
-    
+
     #alertas-sonido {
         top: 10px;
         right: 10px;
@@ -436,12 +501,16 @@ button.borrar-historial:hover {
         text-align: center;
         font-size: 14px;
     }
-    
+
     #personas-conectadas h4 {
         font-size: 14px;
     }
-    
+
     #lista-personas li {
         font-size: 14px;
+    }
+
+    video {
+        max-width: 100%;
     }
 }
