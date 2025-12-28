@@ -7,12 +7,126 @@ body {
     background: #f5f5f5;
 }
 
-/* Pantalla principal */
 #pantalla-principal {
     background: white;
     border-radius: 10px;
     padding: 30px;
     box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+}
+
+/* ✨ NUEVO: Sala compartida */
+.sala-compartida {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    padding: 20px;
+    border-radius: 10px;
+    margin-bottom: 20px;
+    color: white;
+}
+
+.sala-compartida h3 {
+    margin-top: 0;
+    margin-bottom: 15px;
+}
+
+.codigo-sala {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 10px;
+    flex-wrap: wrap;
+}
+
+.codigo-sala label {
+    font-weight: bold;
+    align-self: center;
+}
+
+.codigo-sala input {
+    flex: 1;
+    padding: 10px;
+    border: none;
+    border-radius: 5px;
+    font-size: 16px;
+    min-width: 200px;
+}
+
+button.conectar {
+    background: #4CAF50;
+    padding: 10px 20px;
+}
+
+button.conectar:hover {
+    background: #388E3C;
+}
+
+button.desconectar {
+    background: #f44336;
+    padding: 10px 20px;
+}
+
+button.desconectar:hover {
+    background: #d32f2f;
+}
+
+.estado-conexion {
+    margin: 10px 0 0 0;
+    font-weight: bold;
+    font-size: 16px;
+}
+
+/* Configuración de Hablantes */
+.config-hablantes {
+    background: #f0f0f0;
+    padding: 20px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    border: 2px solid #ddd;
+}
+
+.config-hablantes h3 {
+    margin-top: 0;
+    margin-bottom: 15px;
+    color: #333;
+    font-size: 18px;
+}
+
+.inputs-hablantes {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.inputs-hablantes input {
+    flex: 1;
+    min-width: 150px;
+    padding: 12px;
+    border: 2px solid #ddd;
+    border-radius: 5px;
+    font-size: 15px;
+    transition: border-color 0.3s ease;
+}
+
+.inputs-hablantes input:focus {
+    outline: none;
+    border-color: #2196F3;
+    background: #fff;
+}
+
+/* Indicador de Hablante Actual */
+#hablante-actual {
+    background: linear-gradient(135deg, #fff3cd 0%, #ffe69c 100%);
+    border: 2px solid #ffc107;
+    padding: 15px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    font-size: 18px;
+    font-weight: bold;
+    text-align: center;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
+
+#nombre-actual {
+    color: #ff6b00;
+    font-size: 20px;
 }
 
 /* Alertas de sonido */
@@ -22,18 +136,19 @@ body {
     right: 20px;
     background: #ff4444;
     color: white;
-    padding: 15px;
+    padding: 15px 25px;
     border-radius: 8px;
-    font-size: 20px;
+    font-size: 16px;
     font-weight: bold;
     display: none;
     animation: pulsar 1s infinite;
     z-index: 1000;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.3);
 }
 
 @keyframes pulsar {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.5; }
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.7; transform: scale(1.05); }
 }
 
 /* Estilos de hablantes */
@@ -42,6 +157,12 @@ body {
     padding: 15px;
     border-left: 4px solid;
     border-radius: 5px;
+    animation: aparecer 0.3s ease;
+}
+
+@keyframes aparecer {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
 }
 
 .hablante-a { 
@@ -72,6 +193,9 @@ body {
 /* Botones */
 .controles {
     margin: 20px 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
 }
 
 button {
@@ -82,16 +206,18 @@ button {
     font-size: 18px;
     border-radius: 5px;
     cursor: pointer;
-    margin: 10px 5px;
-    transition: background 0.3s ease;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
 }
 
 button:hover {
     background: #1976D2;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.3);
 }
 
 button:active {
-    transform: scale(0.98);
+    transform: scale(0.98) translateY(0);
 }
 
 button.detener {
@@ -100,6 +226,14 @@ button.detener {
 
 button.detener:hover {
     background: #d32f2f;
+}
+
+button.cambiar {
+    background: #9C27B0;
+}
+
+button.cambiar:hover {
+    background: #7B1FA2;
 }
 
 button.limpiar {
@@ -179,11 +313,13 @@ button.borrar-historial:hover {
     margin: 10px 0;
     border-radius: 5px;
     font-size: 14px;
+    border-left: 3px solid #ccc;
 }
 
 .conversacion-item .fecha {
     color: #666;
     font-size: 12px;
+    margin-bottom: 5px;
 }
 
 /* Responsive */
@@ -196,10 +332,43 @@ button.borrar-historial:hover {
         padding: 15px;
     }
     
-    button {
-        padding: 10px 20px;
+    .sala-compartida {
+        padding: 15px;
+    }
+    
+    .codigo-sala {
+        flex-direction: column;
+    }
+    
+    .codigo-sala input {
+        width: 100%;
+    }
+    
+    .config-hablantes {
+        padding: 15px;
+    }
+    
+    .inputs-hablantes {
+        flex-direction: column;
+    }
+    
+    .inputs-hablantes input {
+        width: 100%;
+        min-width: 100%;
+    }
+    
+    #hablante-actual {
         font-size: 16px;
-        display: block;
+        padding: 12px;
+    }
+    
+    .controles {
+        flex-direction: column;
+    }
+    
+    button {
+        padding: 12px 20px;
+        font-size: 16px;
         width: 100%;
         margin: 5px 0;
     }
@@ -219,5 +388,6 @@ button.borrar-historial:hover {
         right: 10px;
         left: 10px;
         text-align: center;
+        font-size: 14px;
     }
 }
