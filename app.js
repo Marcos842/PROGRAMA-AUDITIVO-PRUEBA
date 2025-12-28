@@ -1,4 +1,4 @@
-// ✨ CONFIGURACIÓN DE FIREBASE - CON TUS DATOS REALES
+// ✨ CONFIGURACIÓN DE FIREBASE
 const firebaseConfig = {
     apiKey: "AIzaSyD3l6zHseL3COORdmj5cANtFDMLpjGh708",
     authDomain: "almacenamiento-216a8.firebaseapp.com",
@@ -9,7 +9,6 @@ const firebaseConfig = {
     appId: "1:815356507436:web:aa7e3450a0b10a3554e889"
 };
 
-// Inicializar Firebase
 firebase.initializeApp(firebaseConfig);
 const database = firebase.database();
 
@@ -23,28 +22,73 @@ let resultadoProcesado = 0;
 let hablanteActual = 'a';
 let codigoSalaActual = null;
 let salaRef = null;
+let presenciaRef = null;
+let miPresenciaKey = null;
+let personasConectadasRef = null;
 
-// Inicializar cuando carga la página
 document.addEventListener('DOMContentLoaded', function() {
     inicializarReconocimiento();
     cargarHistorial();
     configurarBotones();
     cargarNombresHablantes();
+    cargarNombreUsuario();
 });
 
-// ✨ NUEVA FUNCIÓN: Conectar a sala compartida
+// ✨ NUEVA FUNCIÓN: Cargar nombre de usuario guardado
+function cargarNombreUsuario() {
+    const nombreGuardado = localStorage.getItem('miNombre');
+    if (nombreGuardado) {
+        document.getElementById('mi-nombre').value = nombreGuardado;
+    }
+}
+
+// ✨ NUEVA FUNCIÓN: Guardar nombre de usuario
+function guardarNombreUsuario() {
+    const nombre = document.getElementById('mi-nombre').value.trim();
+    if (nombre) {
+        localStorage.setItem('miNombre', nombre);
+    }
+}
+
+// ✨ FUNCIÓN MEJORADA: Conectar a sala con presencia
 function conectarSala() {
     const codigoSala = document.getElementById('codigo-sala').value.trim();
+    const miNombre = document.getElementById('mi-nombre').value.trim();
     
     if (!codigoSala) {
         alert('Por favor ingresa un código de sala');
         return;
     }
     
+    if (!miNombre) {
+        alert('Por favor ingresa tu nombre');
+        return;
+    }
+    
+    guardarNombreUsuario();
+    
     codigoSalaActual = codigoSala;
     salaRef = database.ref('salas/' + codigoSala + '/mensajes');
+    presenciaRef = database.ref('salas/' + codigoSala + '/presencia');
     
-    // Escuchar nuevos mensajes en tiempo real
+    // ✨ Agregar mi presencia
+    const miPresencia = presenciaRef.push({
+        nombre: miNombre,
+        conectado: true,
+        timestamp: Date.now()
+    });
+    
+    miPresenciaKey = miPresencia.key;
+    
+    // ✨ Eliminar mi presencia cuando me desconecto
+    miPresencia.onDisconnect().remove();
+    
+    // ✨ Escuchar cambios en personas conectadas
+    presenciaRef.on('value', function(snapshot) {
+        actualizarListaPersonas(snapshot);
+    });
+    
+    // Escuchar nuevos mensajes
     salaRef.on('child_added', function(snapshot) {
         const mensaje = snapshot.val();
         mostrarMensajeRemoto(mensaje);
@@ -54,30 +98,67 @@ function conectarSala() {
     document.getElementById('conectar-sala').style.display = 'none';
     document.getElementById('desconectar-sala').style.display = 'inline-block';
     document.getElementById('codigo-sala').disabled = true;
-    document.getElementById('estado-conexion').textContent = '🟢 Conectado a: ' + codigoSala;
-    document.getElementById('estado-conexion').style.color = '#4CAF50';
+    document.getElementById('mi-nombre').disabled = true;
+    document.getElementById('personas-conectadas').style.display = 'block';
     
     mostrarAlerta('Conectado a la sala: ' + codigoSala, 'success');
 }
 
-// ✨ NUEVA FUNCIÓN: Desconectar de sala
+// ✨ NUEVA FUNCIÓN: Actualizar lista de personas conectadas
+function actualizarListaPersonas(snapshot) {
+    const listaPersonas = document.getElementById('lista-personas');
+    listaPersonas.innerHTML = '';
+    
+    const personas = snapshot.val();
+    if (!personas) {
+        document.getElementById('estado-conexion').textContent = '🟢 Conectado - Solo tú en la sala';
+        document.getElementById('estado-conexion').style.color = '#4CAF50';
+        return;
+    }
+    
+    const personasArray = Object.values(personas);
+    const cantidad = personasArray.length;
+    
+    document.getElementById('estado-conexion').textContent = 
+        `🟢 Conectado - ${cantidad} ${cantidad === 1 ? 'persona' : 'personas'} en la sala`;
+    document.getElementById('estado-conexion').style.color = '#4CAF50';
+    
+    personasArray.forEach(persona => {
+        const li = document.createElement('li');
+        li.textContent = persona.nombre;
+        listaPersonas.appendChild(li);
+    });
+}
+
 function desconectarSala() {
     if (salaRef) {
         salaRef.off();
         salaRef = null;
     }
     
+    if (presenciaRef) {
+        // ✨ Eliminar mi presencia
+        if (miPresenciaKey) {
+            presenciaRef.child(miPresenciaKey).remove();
+        }
+        presenciaRef.off();
+        presenciaRef = null;
+    }
+    
     codigoSalaActual = null;
+    miPresenciaKey = null;
+    
     document.getElementById('conectar-sala').style.display = 'inline-block';
     document.getElementById('desconectar-sala').style.display = 'none';
     document.getElementById('codigo-sala').disabled = false;
+    document.getElementById('mi-nombre').disabled = false;
     document.getElementById('estado-conexion').textContent = '⚪ Sin conexión';
     document.getElementById('estado-conexion').style.color = '#999';
+    document.getElementById('personas-conectadas').style.display = 'none';
     
     mostrarAlerta('Desconectado de la sala', 'info');
 }
 
-// ✨ NUEVA FUNCIÓN: Enviar mensaje a Firebase
 function enviarMensajeFirebase(texto, hablante, nombreHablante, tiempo) {
     if (!salaRef) return;
     
@@ -86,17 +167,16 @@ function enviarMensajeFirebase(texto, hablante, nombreHablante, tiempo) {
         hablante: hablante,
         nombreHablante: nombreHablante,
         tiempo: tiempo,
-        timestamp: Date.now()
+        timestamp: Date.now(),
+        enviadoPor: document.getElementById('mi-nombre').value
     };
     
     salaRef.push(mensaje);
 }
 
-// ✨ NUEVA FUNCIÓN: Mostrar mensaje remoto
 function mostrarMensajeRemoto(mensaje) {
     const textoFinal = document.getElementById('texto-final');
     
-    // Evitar duplicados
     const mensajes = textoFinal.getElementsByClassName('hablante');
     for (let i = 0; i < mensajes.length; i++) {
         if (mensajes[i].getAttribute('data-timestamp') == mensaje.timestamp) {
