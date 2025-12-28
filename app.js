@@ -1,4 +1,4 @@
-// ✨ CONFIGURACIÓN DE FIREBASE
+// CONFIGURACIÓN DE FIREBASE
 const firebaseConfig = {
     apiKey: "AIzaSyD3l6zHseL3COORdmj5cANtFDMLpjGh708",
     authDomain: "almacenamiento-216a8.firebaseapp.com",
@@ -15,26 +15,24 @@ const database = firebase.database();
 // Variables globales
 let recognition;
 let isRecording = false;
-let db = {
-    conversaciones: []
-};
+let db = { conversaciones: [] };
 let resultadoProcesado = 0;
 let hablanteActual = 'a';
 let codigoSalaActual = null;
 let salaRef = null;
 let presenciaRef = null;
 let miPresenciaKey = null;
-let personasConectadasRef = null;
 
+// Inicializar cuando carga la página
 document.addEventListener('DOMContentLoaded', function() {
     inicializarReconocimiento();
     cargarHistorial();
-    configurarBotones();
     cargarNombresHablantes();
     cargarNombreUsuario();
+    configurarBotones();
 });
 
-// ✨ NUEVA FUNCIÓN: Cargar nombre de usuario guardado
+// Cargar nombre de usuario guardado
 function cargarNombreUsuario() {
     const nombreGuardado = localStorage.getItem('miNombre');
     if (nombreGuardado) {
@@ -42,7 +40,7 @@ function cargarNombreUsuario() {
     }
 }
 
-// ✨ NUEVA FUNCIÓN: Guardar nombre de usuario
+// Guardar nombre de usuario
 function guardarNombreUsuario() {
     const nombre = document.getElementById('mi-nombre').value.trim();
     if (nombre) {
@@ -50,7 +48,7 @@ function guardarNombreUsuario() {
     }
 }
 
-// ✨ FUNCIÓN MEJORADA: Conectar a sala con presencia
+// Conectar a sala con presencia
 function conectarSala() {
     const codigoSala = document.getElementById('codigo-sala').value.trim();
     const miNombre = document.getElementById('mi-nombre').value.trim();
@@ -71,7 +69,7 @@ function conectarSala() {
     salaRef = database.ref('salas/' + codigoSala + '/mensajes');
     presenciaRef = database.ref('salas/' + codigoSala + '/presencia');
     
-    // ✨ Agregar mi presencia
+    // Agregar mi presencia
     const miPresencia = presenciaRef.push({
         nombre: miNombre,
         conectado: true,
@@ -79,11 +77,9 @@ function conectarSala() {
     });
     
     miPresenciaKey = miPresencia.key;
-    
-    // ✨ Eliminar mi presencia cuando me desconecto
     miPresencia.onDisconnect().remove();
     
-    // ✨ Escuchar cambios en personas conectadas
+    // Escuchar cambios en personas conectadas
     presenciaRef.on('value', function(snapshot) {
         actualizarListaPersonas(snapshot);
     });
@@ -104,24 +100,29 @@ function conectarSala() {
     mostrarAlerta('Conectado a la sala: ' + codigoSala, 'success');
 }
 
-// ✨ NUEVA FUNCIÓN: Actualizar lista de personas conectadas
+// Actualizar lista de personas conectadas
 function actualizarListaPersonas(snapshot) {
     const listaPersonas = document.getElementById('lista-personas');
+    const estadoConexion = document.getElementById('estado-conexion');
+    
     listaPersonas.innerHTML = '';
     
     const personas = snapshot.val();
+    
     if (!personas) {
-        document.getElementById('estado-conexion').textContent = '🟢 Conectado - Solo tú en la sala';
-        document.getElementById('estado-conexion').style.color = '#4CAF50';
+        estadoConexion.textContent = '🟢 Conectado - Solo tú en la sala';
+        estadoConexion.style.color = '#4CAF50';
+        const li = document.createElement('li');
+        li.textContent = 'Solo tú';
+        listaPersonas.appendChild(li);
         return;
     }
     
     const personasArray = Object.values(personas);
     const cantidad = personasArray.length;
     
-    document.getElementById('estado-conexion').textContent = 
-        `🟢 Conectado - ${cantidad} ${cantidad === 1 ? 'persona' : 'personas'} en la sala`;
-    document.getElementById('estado-conexion').style.color = '#4CAF50';
+    estadoConexion.textContent = `🟢 Conectado - ${cantidad} ${cantidad === 1 ? 'persona' : 'personas'} en la sala`;
+    estadoConexion.style.color = '#4CAF50';
     
     personasArray.forEach(persona => {
         const li = document.createElement('li');
@@ -130,6 +131,7 @@ function actualizarListaPersonas(snapshot) {
     });
 }
 
+// Desconectar de sala
 function desconectarSala() {
     if (salaRef) {
         salaRef.off();
@@ -137,7 +139,6 @@ function desconectarSala() {
     }
     
     if (presenciaRef) {
-        // ✨ Eliminar mi presencia
         if (miPresenciaKey) {
             presenciaRef.child(miPresenciaKey).remove();
         }
@@ -159,6 +160,7 @@ function desconectarSala() {
     mostrarAlerta('Desconectado de la sala', 'info');
 }
 
+// Enviar mensaje a Firebase
 function enviarMensajeFirebase(texto, hablante, nombreHablante, tiempo) {
     if (!salaRef) return;
     
@@ -174,6 +176,7 @@ function enviarMensajeFirebase(texto, hablante, nombreHablante, tiempo) {
     salaRef.push(mensaje);
 }
 
+// Mostrar mensaje remoto
 function mostrarMensajeRemoto(mensaje) {
     const textoFinal = document.getElementById('texto-final');
     
@@ -196,6 +199,7 @@ function mostrarMensajeRemoto(mensaje) {
     divTexto.scrollIntoView({ behavior: 'smooth' });
 }
 
+// Cargar nombres de hablantes
 function cargarNombresHablantes() {
     const nombresGuardados = localStorage.getItem('nombresHablantes');
     if (nombresGuardados) {
@@ -207,6 +211,7 @@ function cargarNombresHablantes() {
     actualizarIndicadorHablante();
 }
 
+// Guardar nombres de hablantes
 function guardarNombresHablantes() {
     const nombres = {
         a: document.getElementById('nombre-a').value || 'Hablante A',
@@ -216,12 +221,14 @@ function guardarNombresHablantes() {
     localStorage.setItem('nombresHablantes', JSON.stringify(nombres));
 }
 
+// Actualizar indicador de hablante actual
 function actualizarIndicadorHablante() {
     const nombreInput = document.getElementById(`nombre-${hablanteActual}`);
     const nombreActual = nombreInput ? nombreInput.value : `Hablante ${hablanteActual.toUpperCase()}`;
     document.getElementById('nombre-actual').textContent = nombreActual;
 }
 
+// Cambiar hablante manualmente
 function cambiarHablante() {
     if (hablanteActual === 'a') {
         hablanteActual = 'b';
@@ -235,6 +242,7 @@ function cambiarHablante() {
     mostrarAlerta(`Ahora habla: ${nombreHablante}`, 'success');
 }
 
+// Inicializar reconocimiento de voz
 function inicializarReconocimiento() {
     if ('webkitSpeechRecognition' in window) {
         recognition = new webkitSpeechRecognition();
@@ -266,6 +274,7 @@ function inicializarReconocimiento() {
     }
 }
 
+// Manejar resultados de transcripción
 function manejarResultados(event) {
     let textoTemporal = '';
     
@@ -288,6 +297,7 @@ function manejarResultados(event) {
     }
 }
 
+// Agregar texto a la pantalla
 function agregarTexto(texto, hablante, guardar = false) {
     const ahora = new Date();
     const tiempo = ahora.toLocaleTimeString();
@@ -311,6 +321,7 @@ function agregarTexto(texto, hablante, guardar = false) {
     }
 }
 
+// Guardar transcripción en localStorage
 function guardarTranscripcion(texto, hablante, tiempo, nombreHablante) {
     const registro = {
         id: Date.now(),
@@ -325,6 +336,7 @@ function guardarTranscripcion(texto, hablante, tiempo, nombreHablante) {
     localStorage.setItem('transcripciones', JSON.stringify(db.conversaciones));
 }
 
+// Cargar historial del localStorage
 function cargarHistorial() {
     const guardado = localStorage.getItem('transcripciones');
     if (guardado) {
@@ -333,6 +345,7 @@ function cargarHistorial() {
     }
 }
 
+// Mostrar historial en pantalla
 function mostrarHistorial() {
     const lista = document.getElementById('lista-conversaciones');
     lista.innerHTML = '';
@@ -356,6 +369,7 @@ function mostrarHistorial() {
     });
 }
 
+// Limpiar conversación
 function limpiarConversacion() {
     document.getElementById('texto-final').innerHTML = '';
     document.getElementById('texto-temporal').innerHTML = '';
@@ -363,6 +377,7 @@ function limpiarConversacion() {
     mostrarAlerta('Conversación limpiada', 'success');
 }
 
+// Borrar historial
 function borrarHistorial() {
     if (confirm('¿Estás seguro de borrar TODO el historial guardado? Esta acción no se puede deshacer.')) {
         db.conversaciones = [];
@@ -372,6 +387,7 @@ function borrarHistorial() {
     }
 }
 
+// Exportar a CSV
 function exportarCSV() {
     if (db.conversaciones.length === 0) {
         alert('No hay conversaciones para exportar');
@@ -396,6 +412,7 @@ function exportarCSV() {
     mostrarAlerta('Archivo CSV descargado exitosamente', 'success');
 }
 
+// Mostrar alertas
 function mostrarAlerta(mensaje, tipo) {
     const alerta = document.getElementById('alertas-sonido');
     alerta.textContent = mensaje;
@@ -407,6 +424,7 @@ function mostrarAlerta(mensaje, tipo) {
     }, 3000);
 }
 
+// Configurar eventos de botones
 function configurarBotones() {
     document.getElementById('iniciar').addEventListener('click', function() {
         if (!isRecording) {
@@ -436,7 +454,6 @@ function configurarBotones() {
     
     document.getElementById('conectar-sala').addEventListener('click', conectarSala);
     document.getElementById('desconectar-sala').addEventListener('click', desconectarSala);
-    
     document.getElementById('cambiar-hablante').addEventListener('click', cambiarHablante);
     
     document.getElementById('limpiar').addEventListener('click', function() {
