@@ -22,6 +22,7 @@ let codigoSalaActual = null;
 let salaRef = null;
 let presenciaRef = null;
 let miPresenciaKey = null;
+let misTimestamps = new Set(); // ✅ NUEVO: Guardar mis propios timestamps
 
 // Inicializar cuando carga la página
 document.addEventListener('DOMContentLoaded', function() {
@@ -48,7 +49,7 @@ function guardarNombreUsuario() {
     }
 }
 
-// Conectar a sala con presencia (CORREGIDO - SIN DUPLICADOS)
+// Conectar a sala con presencia
 function conectarSala() {
     const codigoSala = document.getElementById('codigo-sala').value.trim();
     const miNombre = document.getElementById('mi-nombre').value.trim();
@@ -65,9 +66,10 @@ function conectarSala() {
     
     guardarNombreUsuario();
     
-    // LIMPIAR PANTALLA AL CONECTAR
+    // LIMPIAR PANTALLA Y TIMESTAMPS AL CONECTAR
     document.getElementById('texto-final').innerHTML = '';
     document.getElementById('texto-temporal').innerHTML = '';
+    misTimestamps.clear(); // ✅ LIMPIAR TIMESTAMPS
     
     codigoSalaActual = codigoSala;
     salaRef = database.ref('salas/' + codigoSala + '/mensajes');
@@ -88,7 +90,7 @@ function conectarSala() {
         actualizarListaPersonas(snapshot);
     });
     
-    // SOLO ESCUCHAR MENSAJES NUEVOS (después de conectarse)
+    // ESCUCHAR TODOS LOS MENSAJES NUEVOS
     const momentoConexion = Date.now();
     
     salaRef.orderByChild('timestamp').startAt(momentoConexion).on('child_added', function(snapshot) {
@@ -154,6 +156,7 @@ function desconectarSala() {
     
     codigoSalaActual = null;
     miPresenciaKey = null;
+    misTimestamps.clear(); // ✅ LIMPIAR TIMESTAMPS
     
     document.getElementById('conectar-sala').style.display = 'inline-block';
     document.getElementById('desconectar-sala').style.display = 'none';
@@ -167,23 +170,31 @@ function desconectarSala() {
 }
 
 // Enviar mensaje a Firebase
-function enviarMensajeFirebase(texto, hablante, nombreHablante, tiempo) {
+function enviarMensajeFirebase(texto, hablante, nombreHablante, tiempo, timestamp) {
     if (!salaRef) return;
+    
+    // ✅ GUARDAR MI TIMESTAMP PARA NO DUPLICAR
+    misTimestamps.add(timestamp);
     
     const mensaje = {
         texto: texto,
         hablante: hablante,
         nombreHablante: nombreHablante,
         tiempo: tiempo,
-        timestamp: Date.now(),
+        timestamp: timestamp,
         enviadoPor: document.getElementById('mi-nombre').value
     };
     
     salaRef.push(mensaje);
 }
 
-// Mostrar mensaje remoto
+// Mostrar mensaje remoto (CORREGIDO - NO DUPLICAR PROPIOS)
 function mostrarMensajeRemoto(mensaje) {
+    // ✅ SI ES MI PROPIO MENSAJE, NO LO MUESTRES DE NUEVO
+    if (misTimestamps.has(mensaje.timestamp)) {
+        return;
+    }
+    
     const textoFinal = document.getElementById('texto-final');
     
     // Evitar duplicados verificando timestamp
@@ -324,7 +335,7 @@ function agregarTexto(texto, hablante, guardar = false) {
     
     if (guardar) {
         guardarTranscripcion(texto, hablante, tiempo, nombreHablante);
-        enviarMensajeFirebase(texto, hablante, nombreHablante, tiempo);
+        enviarMensajeFirebase(texto, hablante, nombreHablante, tiempo, timestamp); // ✅ PASAR TIMESTAMP
     }
 }
 
