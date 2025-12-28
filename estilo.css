@@ -14,7 +14,7 @@ body {
     box-shadow: 0 2px 10px rgba(0,0,0,0.1);
 }
 
-/* ✨ NUEVO: Sala compartida */
+/* Sala compartida */
 .sala-compartida {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     padding: 20px;
@@ -33,11 +33,12 @@ body {
     gap: 10px;
     margin-bottom: 10px;
     flex-wrap: wrap;
+    align-items: center;
 }
 
 .codigo-sala label {
     font-weight: bold;
-    align-self: center;
+    font-size: 14px;
 }
 
 .codigo-sala input {
@@ -46,7 +47,12 @@ body {
     border: none;
     border-radius: 5px;
     font-size: 16px;
-    min-width: 200px;
+    min-width: 150px;
+}
+
+.codigo-sala input#mi-nombre {
+    flex: 0.8;
+    min-width: 120px;
 }
 
 button.conectar {
@@ -70,6 +76,40 @@ button.desconectar:hover {
 .estado-conexion {
     margin: 10px 0 0 0;
     font-weight: bold;
+    font-size: 16px;
+}
+
+/* Personas conectadas */
+#personas-conectadas {
+    margin-top: 15px;
+    padding-top: 15px;
+    border-top: 2px solid rgba(255,255,255,0.3);
+}
+
+#personas-conectadas h4 {
+    margin: 0 0 10px 0;
+    font-size: 16px;
+}
+
+#lista-personas {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+#lista-personas li {
+    background: rgba(255,255,255,0.2);
+    padding: 8px 12px;
+    margin: 5px 0;
+    border-radius: 5px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    animation: aparecer 0.3s ease;
+}
+
+#lista-personas li::before {
+    content: "👤";
     font-size: 16px;
 }
 
@@ -338,10 +378,16 @@ button.borrar-historial:hover {
     
     .codigo-sala {
         flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .codigo-sala label {
+        margin-top: 10px;
     }
     
     .codigo-sala input {
         width: 100%;
+        min-width: 100%;
     }
     
     .config-hablantes {
@@ -388,6 +434,14 @@ button.borrar-historial:hover {
         right: 10px;
         left: 10px;
         text-align: center;
+        font-size: 14px;
+    }
+    
+    #personas-conectadas h4 {
+        font-size: 14px;
+    }
+    
+    #lista-personas li {
         font-size: 14px;
     }
 }
