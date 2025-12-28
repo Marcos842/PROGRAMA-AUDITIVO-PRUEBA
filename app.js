@@ -48,7 +48,7 @@ function guardarNombreUsuario() {
     }
 }
 
-// Conectar a sala con presencia
+// Conectar a sala con presencia (CORREGIDO - SIN DUPLICADOS)
 function conectarSala() {
     const codigoSala = document.getElementById('codigo-sala').value.trim();
     const miNombre = document.getElementById('mi-nombre').value.trim();
@@ -64,6 +64,10 @@ function conectarSala() {
     }
     
     guardarNombreUsuario();
+    
+    // LIMPIAR PANTALLA AL CONECTAR
+    document.getElementById('texto-final').innerHTML = '';
+    document.getElementById('texto-temporal').innerHTML = '';
     
     codigoSalaActual = codigoSala;
     salaRef = database.ref('salas/' + codigoSala + '/mensajes');
@@ -84,8 +88,10 @@ function conectarSala() {
         actualizarListaPersonas(snapshot);
     });
     
-    // Escuchar nuevos mensajes
-    salaRef.on('child_added', function(snapshot) {
+    // SOLO ESCUCHAR MENSAJES NUEVOS (después de conectarse)
+    const momentoConexion = Date.now();
+    
+    salaRef.orderByChild('timestamp').startAt(momentoConexion).on('child_added', function(snapshot) {
         const mensaje = snapshot.val();
         mostrarMensajeRemoto(mensaje);
     });
@@ -180,6 +186,7 @@ function enviarMensajeFirebase(texto, hablante, nombreHablante, tiempo) {
 function mostrarMensajeRemoto(mensaje) {
     const textoFinal = document.getElementById('texto-final');
     
+    // Evitar duplicados verificando timestamp
     const mensajes = textoFinal.getElementsByClassName('hablante');
     for (let i = 0; i < mensajes.length; i++) {
         if (mensajes[i].getAttribute('data-timestamp') == mensaje.timestamp) {
