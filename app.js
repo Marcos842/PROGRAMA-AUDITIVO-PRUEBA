@@ -1,3 +1,18 @@
+// ✨ CONFIGURACIÓN DE FIREBASE - CON TUS DATOS REALES
+const firebaseConfig = {
+    apiKey: "AIzaSyD3l6zHseL3COORdmj5cANtFDMLpjGh708",
+    authDomain: "almacenamiento-216a8.firebaseapp.com",
+    databaseURL: "https://almacenamiento-216a8-default-rtdb.firebaseio.com",
+    projectId: "almacenamiento-216a8",
+    storageBucket: "almacenamiento-216a8.firebasestorage.app",
+    messagingSenderId: "815356507436",
+    appId: "1:815356507436:web:aa7e3450a0b10a3554e889"
+};
+
+// Inicializar Firebase
+firebase.initializeApp(firebaseConfig);
+const database = firebase.database();
+
 // Variables globales
 let recognition;
 let isRecording = false;
@@ -5,30 +20,150 @@ let db = {
     conversaciones: []
 };
 let resultadoProcesado = 0;
+let hablanteActual = 'a';
+let codigoSalaActual = null;
+let salaRef = null;
 
 // Inicializar cuando carga la página
 document.addEventListener('DOMContentLoaded', function() {
     inicializarReconocimiento();
     cargarHistorial();
     configurarBotones();
+    cargarNombresHablantes();
 });
 
-// Configurar reconocimiento de voz
+// ✨ NUEVA FUNCIÓN: Conectar a sala compartida
+function conectarSala() {
+    const codigoSala = document.getElementById('codigo-sala').value.trim();
+    
+    if (!codigoSala) {
+        alert('Por favor ingresa un código de sala');
+        return;
+    }
+    
+    codigoSalaActual = codigoSala;
+    salaRef = database.ref('salas/' + codigoSala + '/mensajes');
+    
+    // Escuchar nuevos mensajes en tiempo real
+    salaRef.on('child_added', function(snapshot) {
+        const mensaje = snapshot.val();
+        mostrarMensajeRemoto(mensaje);
+    });
+    
+    // Actualizar UI
+    document.getElementById('conectar-sala').style.display = 'none';
+    document.getElementById('desconectar-sala').style.display = 'inline-block';
+    document.getElementById('codigo-sala').disabled = true;
+    document.getElementById('estado-conexion').textContent = '🟢 Conectado a: ' + codigoSala;
+    document.getElementById('estado-conexion').style.color = '#4CAF50';
+    
+    mostrarAlerta('Conectado a la sala: ' + codigoSala, 'success');
+}
+
+// ✨ NUEVA FUNCIÓN: Desconectar de sala
+function desconectarSala() {
+    if (salaRef) {
+        salaRef.off();
+        salaRef = null;
+    }
+    
+    codigoSalaActual = null;
+    document.getElementById('conectar-sala').style.display = 'inline-block';
+    document.getElementById('desconectar-sala').style.display = 'none';
+    document.getElementById('codigo-sala').disabled = false;
+    document.getElementById('estado-conexion').textContent = '⚪ Sin conexión';
+    document.getElementById('estado-conexion').style.color = '#999';
+    
+    mostrarAlerta('Desconectado de la sala', 'info');
+}
+
+// ✨ NUEVA FUNCIÓN: Enviar mensaje a Firebase
+function enviarMensajeFirebase(texto, hablante, nombreHablante, tiempo) {
+    if (!salaRef) return;
+    
+    const mensaje = {
+        texto: texto,
+        hablante: hablante,
+        nombreHablante: nombreHablante,
+        tiempo: tiempo,
+        timestamp: Date.now()
+    };
+    
+    salaRef.push(mensaje);
+}
+
+// ✨ NUEVA FUNCIÓN: Mostrar mensaje remoto
+function mostrarMensajeRemoto(mensaje) {
+    const textoFinal = document.getElementById('texto-final');
+    
+    // Evitar duplicados
+    const mensajes = textoFinal.getElementsByClassName('hablante');
+    for (let i = 0; i < mensajes.length; i++) {
+        if (mensajes[i].getAttribute('data-timestamp') == mensaje.timestamp) {
+            return;
+        }
+    }
+    
+    const divTexto = document.createElement('div');
+    divTexto.className = `hablante hablante-${mensaje.hablante}`;
+    divTexto.setAttribute('data-timestamp', mensaje.timestamp);
+    divTexto.innerHTML = `
+        <span class="tiempo">[${mensaje.tiempo}]</span>
+        <strong>${mensaje.nombreHablante}:</strong> ${mensaje.texto}
+    `;
+    
+    textoFinal.appendChild(divTexto);
+    divTexto.scrollIntoView({ behavior: 'smooth' });
+}
+
+function cargarNombresHablantes() {
+    const nombresGuardados = localStorage.getItem('nombresHablantes');
+    if (nombresGuardados) {
+        const nombres = JSON.parse(nombresGuardados);
+        document.getElementById('nombre-a').value = nombres.a || 'Hablante A';
+        document.getElementById('nombre-b').value = nombres.b || 'Hablante B';
+        document.getElementById('nombre-c').value = nombres.c || 'Hablante C';
+    }
+    actualizarIndicadorHablante();
+}
+
+function guardarNombresHablantes() {
+    const nombres = {
+        a: document.getElementById('nombre-a').value || 'Hablante A',
+        b: document.getElementById('nombre-b').value || 'Hablante B',
+        c: document.getElementById('nombre-c').value || 'Hablante C'
+    };
+    localStorage.setItem('nombresHablantes', JSON.stringify(nombres));
+}
+
+function actualizarIndicadorHablante() {
+    const nombreInput = document.getElementById(`nombre-${hablanteActual}`);
+    const nombreActual = nombreInput ? nombreInput.value : `Hablante ${hablanteActual.toUpperCase()}`;
+    document.getElementById('nombre-actual').textContent = nombreActual;
+}
+
+function cambiarHablante() {
+    if (hablanteActual === 'a') {
+        hablanteActual = 'b';
+    } else if (hablanteActual === 'b') {
+        hablanteActual = 'c';
+    } else {
+        hablanteActual = 'a';
+    }
+    actualizarIndicadorHablante();
+    const nombreHablante = document.getElementById(`nombre-${hablanteActual}`).value || `Hablante ${hablanteActual.toUpperCase()}`;
+    mostrarAlerta(`Ahora habla: ${nombreHablante}`, 'success');
+}
+
 function inicializarReconocimiento() {
-    // Verificar soporte del navegador
     if ('webkitSpeechRecognition' in window) {
         recognition = new webkitSpeechRecognition();
-        
-        // Configuración
         recognition.continuous = true;
         recognition.interimResults = true;
         recognition.lang = 'es-PE';
         recognition.maxAlternatives = 1;
-        
-        // Evento cuando hay resultados
         recognition.onresult = manejarResultados;
         
-        // Evento cuando termina
         recognition.onend = function() {
             if (isRecording) {
                 recognition.start();
@@ -36,12 +171,10 @@ function inicializarReconocimiento() {
             }
         };
         
-        // Evento cuando inicia
         recognition.onstart = function() {
             resultadoProcesado = 0;
         };
         
-        // Evento de error
         recognition.onerror = function(event) {
             console.error('Error de reconocimiento:', event.error);
             mostrarAlerta('Error: ' + event.error, 'error');
@@ -53,26 +186,20 @@ function inicializarReconocimiento() {
     }
 }
 
-// Manejar resultados de transcripción
 function manejarResultados(event) {
     let textoTemporal = '';
     
-    // Solo procesar resultados NUEVOS
     for (let i = resultadoProcesado; i < event.results.length; i++) {
         const texto = event.results[i][0].transcript;
         
         if (event.results[i].isFinal) {
-            // Este resultado es final, guardarlo
-            const hablante = detectarHablante();
-            agregarTexto(texto, hablante, true);
+            agregarTexto(texto, hablanteActual, true);
             resultadoProcesado = i + 1;
         } else {
-            // Mostrar temporalmente mientras habla
             textoTemporal += texto;
         }
     }
     
-    // Mostrar texto temporal
     if (textoTemporal) {
         document.getElementById('texto-temporal').innerHTML = 
             `<span class="temporal">Escuchando: ${textoTemporal}</span>`;
@@ -81,44 +208,36 @@ function manejarResultados(event) {
     }
 }
 
-// Agregar texto a la pantalla
 function agregarTexto(texto, hablante, guardar = false) {
     const ahora = new Date();
     const tiempo = ahora.toLocaleTimeString();
+    const nombreHablante = document.getElementById(`nombre-${hablante}`).value || `Hablante ${hablante.toUpperCase()}`;
+    const timestamp = Date.now();
     
     const divTexto = document.createElement('div');
     divTexto.className = `hablante hablante-${hablante}`;
+    divTexto.setAttribute('data-timestamp', timestamp);
     divTexto.innerHTML = `
         <span class="tiempo">[${tiempo}]</span>
-        <strong>Hablante ${hablante.toUpperCase()}:</strong> ${texto}
+        <strong>${nombreHablante}:</strong> ${texto}
     `;
     
     document.getElementById('texto-final').appendChild(divTexto);
-    
-    // Auto-scroll hacia abajo
     divTexto.scrollIntoView({ behavior: 'smooth' });
     
     if (guardar) {
-        guardarTranscripcion(texto, hablante, tiempo);
+        guardarTranscripcion(texto, hablante, tiempo, nombreHablante);
+        enviarMensajeFirebase(texto, hablante, nombreHablante, tiempo);
     }
 }
 
-// Detectar hablante (simplificado)
-let ultimoHablante = 'a';
-function detectarHablante() {
-    // Alternar entre hablantes
-    // En producción usarías AssemblyAI para detectar automáticamente
-    ultimoHablante = ultimoHablante === 'a' ? 'b' : 'a';
-    return ultimoHablante;
-}
-
-// Guardar transcripción en localStorage
-function guardarTranscripcion(texto, hablante, tiempo) {
+function guardarTranscripcion(texto, hablante, tiempo, nombreHablante) {
     const registro = {
         id: Date.now(),
         fecha: new Date().toISOString(),
         hora: tiempo,
         hablante: hablante,
+        nombreHablante: nombreHablante,
         texto: texto
     };
     
@@ -126,7 +245,6 @@ function guardarTranscripcion(texto, hablante, tiempo) {
     localStorage.setItem('transcripciones', JSON.stringify(db.conversaciones));
 }
 
-// Cargar historial del localStorage
 function cargarHistorial() {
     const guardado = localStorage.getItem('transcripciones');
     if (guardado) {
@@ -135,7 +253,6 @@ function cargarHistorial() {
     }
 }
 
-// Mostrar historial en pantalla
 function mostrarHistorial() {
     const lista = document.getElementById('lista-conversaciones');
     lista.innerHTML = '';
@@ -145,21 +262,20 @@ function mostrarHistorial() {
         return;
     }
     
-    // Mostrar últimas 10 conversaciones
     const ultimas = db.conversaciones.slice(-10).reverse();
     
     ultimas.forEach(conv => {
         const item = document.createElement('div');
         item.className = 'conversacion-item';
+        const nombreMostrar = conv.nombreHablante || `Hablante ${conv.hablante.toUpperCase()}`;
         item.innerHTML = `
             <div class="fecha">${new Date(conv.fecha).toLocaleDateString()} - ${conv.hora}</div>
-            <strong>Hablante ${conv.hablante.toUpperCase()}:</strong> ${conv.texto}
+            <strong>${nombreMostrar}:</strong> ${conv.texto}
         `;
         lista.appendChild(item);
     });
 }
 
-// Limpiar conversación de la pantalla
 function limpiarConversacion() {
     document.getElementById('texto-final').innerHTML = '';
     document.getElementById('texto-temporal').innerHTML = '';
@@ -167,7 +283,6 @@ function limpiarConversacion() {
     mostrarAlerta('Conversación limpiada', 'success');
 }
 
-// NUEVA FUNCIÓN: Borrar todo el historial guardado
 function borrarHistorial() {
     if (confirm('¿Estás seguro de borrar TODO el historial guardado? Esta acción no se puede deshacer.')) {
         db.conversaciones = [];
@@ -177,7 +292,6 @@ function borrarHistorial() {
     }
 }
 
-// Exportar a CSV
 function exportarCSV() {
     if (db.conversaciones.length === 0) {
         alert('No hay conversaciones para exportar');
@@ -188,10 +302,10 @@ function exportarCSV() {
     
     db.conversaciones.forEach(conv => {
         const fecha = new Date(conv.fecha).toLocaleDateString();
-        csv += `${fecha},${conv.hora},${conv.hablante},"${conv.texto}"\n`;
+        const nombreHablante = conv.nombreHablante || conv.hablante;
+        csv += `${fecha},${conv.hora},${nombreHablante},"${conv.texto}"\n`;
     });
     
-    // Crear y descargar archivo
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -202,7 +316,6 @@ function exportarCSV() {
     mostrarAlerta('Archivo CSV descargado exitosamente', 'success');
 }
 
-// Mostrar alertas
 function mostrarAlerta(mensaje, tipo) {
     const alerta = document.getElementById('alertas-sonido');
     alerta.textContent = mensaje;
@@ -214,12 +327,9 @@ function mostrarAlerta(mensaje, tipo) {
     }, 3000);
 }
 
-// Configurar eventos de botones
 function configurarBotones() {
-    // Botón Iniciar
     document.getElementById('iniciar').addEventListener('click', function() {
         if (!isRecording) {
-            // Limpiar transcripción anterior
             document.getElementById('texto-final').innerHTML = '';
             document.getElementById('texto-temporal').innerHTML = '';
             resultadoProcesado = 0;
@@ -232,7 +342,6 @@ function configurarBotones() {
         }
     });
     
-    // Botón Detener
     document.getElementById('detener').addEventListener('click', function() {
         if (isRecording) {
             recognition.stop();
@@ -245,26 +354,42 @@ function configurarBotones() {
         }
     });
     
-    // Botón Limpiar
+    document.getElementById('conectar-sala').addEventListener('click', conectarSala);
+    document.getElementById('desconectar-sala').addEventListener('click', desconectarSala);
+    
+    document.getElementById('cambiar-hablante').addEventListener('click', cambiarHablante);
+    
     document.getElementById('limpiar').addEventListener('click', function() {
         if (confirm('¿Estás seguro de limpiar toda la conversación visible?')) {
             limpiarConversacion();
         }
     });
     
-    // Botón Guardar
     document.getElementById('guardar').addEventListener('click', function() {
         mostrarHistorial();
         mostrarAlerta('Historial actualizado', 'success');
     });
     
-    // Botón Exportar
     document.getElementById('exportar').addEventListener('click', function() {
         exportarCSV();
     });
     
-    // Botón Borrar Historial (NUEVO)
     document.getElementById('borrar-historial').addEventListener('click', function() {
         borrarHistorial();
+    });
+    
+    document.getElementById('nombre-a').addEventListener('change', function() {
+        guardarNombresHablantes();
+        if (hablanteActual === 'a') actualizarIndicadorHablante();
+    });
+    
+    document.getElementById('nombre-b').addEventListener('change', function() {
+        guardarNombresHablantes();
+        if (hablanteActual === 'b') actualizarIndicadorHablante();
+    });
+    
+    document.getElementById('nombre-c').addEventListener('change', function() {
+        guardarNombresHablantes();
+        if (hablanteActual === 'c') actualizarIndicadorHablante();
     });
 }
