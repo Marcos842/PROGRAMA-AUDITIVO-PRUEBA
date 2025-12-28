@@ -22,7 +22,9 @@ let codigoSalaActual = null;
 let salaRef = null;
 let presenciaRef = null;
 let miPresenciaKey = null;
-let misTimestamps = new Set(); // ✅ NUEVO: Guardar mis propios timestamps
+let misTimestamps = new Set();
+let ultimoTextoEnviado = ''; // ✅ NUEVO: Evitar duplicados en móvil
+let ultimoTimestampLocal = 0; // ✅ NUEVO: Control adicional de timing
 
 // Inicializar cuando carga la página
 document.addEventListener('DOMContentLoaded', function() {
@@ -66,10 +68,12 @@ function conectarSala() {
     
     guardarNombreUsuario();
     
-    // LIMPIAR PANTALLA Y TIMESTAMPS AL CONECTAR
+    // LIMPIAR PANTALLA Y VARIABLES AL CONECTAR
     document.getElementById('texto-final').innerHTML = '';
     document.getElementById('texto-temporal').innerHTML = '';
-    misTimestamps.clear(); // ✅ LIMPIAR TIMESTAMPS
+    misTimestamps.clear();
+    ultimoTextoEnviado = ''; // ✅ NUEVO
+    ultimoTimestampLocal = 0; // ✅ NUEVO
     
     codigoSalaActual = codigoSala;
     salaRef = database.ref('salas/' + codigoSala + '/mensajes');
@@ -92,7 +96,6 @@ function conectarSala() {
     
     // ESCUCHAR TODOS LOS MENSAJES NUEVOS
     const momentoConexion = Date.now();
-    
     salaRef.orderByChild('timestamp').startAt(momentoConexion).on('child_added', function(snapshot) {
         const mensaje = snapshot.val();
         mostrarMensajeRemoto(mensaje);
@@ -112,11 +115,9 @@ function conectarSala() {
 function actualizarListaPersonas(snapshot) {
     const listaPersonas = document.getElementById('lista-personas');
     const estadoConexion = document.getElementById('estado-conexion');
-    
     listaPersonas.innerHTML = '';
     
     const personas = snapshot.val();
-    
     if (!personas) {
         estadoConexion.textContent = '🟢 Conectado - Solo tú en la sala';
         estadoConexion.style.color = '#4CAF50';
@@ -128,7 +129,6 @@ function actualizarListaPersonas(snapshot) {
     
     const personasArray = Object.values(personas);
     const cantidad = personasArray.length;
-    
     estadoConexion.textContent = `🟢 Conectado - ${cantidad} ${cantidad === 1 ? 'persona' : 'personas'} en la sala`;
     estadoConexion.style.color = '#4CAF50';
     
@@ -156,7 +156,9 @@ function desconectarSala() {
     
     codigoSalaActual = null;
     miPresenciaKey = null;
-    misTimestamps.clear(); // ✅ LIMPIAR TIMESTAMPS
+    misTimestamps.clear();
+    ultimoTextoEnviado = ''; // ✅ NUEVO
+    ultimoTimestampLocal = 0; // ✅ NUEVO
     
     document.getElementById('conectar-sala').style.display = 'inline-block';
     document.getElementById('desconectar-sala').style.display = 'none';
@@ -173,7 +175,6 @@ function desconectarSala() {
 function enviarMensajeFirebase(texto, hablante, nombreHablante, tiempo, timestamp) {
     if (!salaRef) return;
     
-    // ✅ GUARDAR MI TIMESTAMP PARA NO DUPLICAR
     misTimestamps.add(timestamp);
     
     const mensaje = {
@@ -190,7 +191,7 @@ function enviarMensajeFirebase(texto, hablante, nombreHablante, tiempo, timestam
 
 // Mostrar mensaje remoto (CORREGIDO - NO DUPLICAR PROPIOS)
 function mostrarMensajeRemoto(mensaje) {
-    // ✅ SI ES MI PROPIO MENSAJE, NO LO MUESTRES DE NUEVO
+    // SI ES MI PROPIO MENSAJE, NO LO MUESTRES DE NUEVO
     if (misTimestamps.has(mensaje.timestamp)) {
         return;
     }
@@ -255,12 +256,13 @@ function cambiarHablante() {
     } else {
         hablanteActual = 'a';
     }
+    
     actualizarIndicadorHablante();
     const nombreHablante = document.getElementById(`nombre-${hablanteActual}`).value || `Hablante ${hablanteActual.toUpperCase()}`;
     mostrarAlerta(`Ahora habla: ${nombreHablante}`, 'success');
 }
 
-// Inicializar reconocimiento de voz
+// ✅ MEJORADO: Inicializar reconocimiento de voz
 function inicializarReconocimiento() {
     if ('webkitSpeechRecognition' in window) {
         recognition = new webkitSpeechRecognition();
@@ -268,40 +270,76 @@ function inicializarReconocimiento() {
         recognition.interimResults = true;
         recognition.lang = 'es-PE';
         recognition.maxAlternatives = 1;
+        
         recognition.onresult = manejarResultados;
         
+        // ✅ MEJORADO: Reiniciar con pausa para móvil
         recognition.onend = function() {
+            console.log('🔄 Reconocimiento terminado');
             if (isRecording) {
-                recognition.start();
-                resultadoProcesado = 0;
+                setTimeout(() => {
+                    try {
+                        recognition.start();
+                        console.log('✅ Reconocimiento reiniciado');
+                    } catch (e) {
+                        console.error('❌ Error al reiniciar:', e);
+                        isRecording = false;
+                        document.getElementById('iniciar').textContent = '▶️ Iniciar';
+                        document.getElementById('iniciar').style.background = '#2196F3';
+                    }
+                }, 300); // Pausa de 300ms
             }
         };
         
         recognition.onstart = function() {
-            resultadoProcesado = 0;
+            console.log('▶️ Reconocimiento iniciado');
         };
         
+        // ✅ MEJORADO: Manejo de errores específicos de móvil
         recognition.onerror = function(event) {
-            console.error('Error de reconocimiento:', event.error);
+            console.error('❌ Error de reconocimiento:', event.error);
+            
+            // No mostrar alertas para errores comunes en móvil
+            if (event.error === 'no-speech') {
+                console.log('⚠️ No se detectó voz, continuando...');
+                return;
+            }
+            
+            if (event.error === 'aborted') {
+                console.log('⚠️ Reconocimiento abortado, continuando...');
+                return;
+            }
+            
+            if (event.error === 'audio-capture') {
+                mostrarAlerta('Error: Micrófono no disponible', 'error');
+                isRecording = false;
+                return;
+            }
+            
             mostrarAlerta('Error: ' + event.error, 'error');
         };
         
-        console.log('Reconocimiento de voz inicializado correctamente');
+        console.log('✅ Reconocimiento de voz inicializado correctamente');
     } else {
         alert('Tu navegador no soporta reconocimiento de voz. Usa Google Chrome.');
     }
 }
 
-// Manejar resultados de transcripción
+// ✅ MEJORADO: Manejar resultados de transcripción
 function manejarResultados(event) {
     let textoTemporal = '';
     
     for (let i = resultadoProcesado; i < event.results.length; i++) {
-        const texto = event.results[i][0].transcript;
+        const resultado = event.results[i];
+        const texto = resultado[0].transcript.trim();
         
-        if (event.results[i].isFinal) {
-            agregarTexto(texto, hablanteActual, true);
-            resultadoProcesado = i + 1;
+        if (resultado.isFinal) {
+            // ✅ NUEVO: Verificar que no sea duplicado
+            if (texto && texto !== ultimoTextoEnviado && texto.length > 0) {
+                ultimoTextoEnviado = texto;
+                agregarTexto(texto, hablanteActual, true);
+                resultadoProcesado = i + 1;
+            }
         } else {
             textoTemporal += texto;
         }
@@ -309,18 +347,26 @@ function manejarResultados(event) {
     
     if (textoTemporal) {
         document.getElementById('texto-temporal').innerHTML = 
-            `<span class="temporal">Escuchando: ${textoTemporal}</span>`;
+            `<span class="temporal">🎤 Escuchando: ${textoTemporal}</span>`;
     } else {
         document.getElementById('texto-temporal').innerHTML = '';
     }
 }
 
-// Agregar texto a la pantalla
+// ✅ MEJORADO: Agregar texto a la pantalla
 function agregarTexto(texto, hablante, guardar = false) {
     const ahora = new Date();
     const tiempo = ahora.toLocaleTimeString();
     const nombreHablante = document.getElementById(`nombre-${hablante}`).value || `Hablante ${hablante.toUpperCase()}`;
     const timestamp = Date.now();
+    
+    // ✅ NUEVO: Evitar duplicados por timing (menos de 500ms)
+    if (timestamp - ultimoTimestampLocal < 500) {
+        console.log('⚠️ Mensaje duplicado bloqueado por timing');
+        return;
+    }
+    
+    ultimoTimestampLocal = timestamp;
     
     const divTexto = document.createElement('div');
     divTexto.className = `hablante hablante-${hablante}`;
@@ -335,7 +381,7 @@ function agregarTexto(texto, hablante, guardar = false) {
     
     if (guardar) {
         guardarTranscripcion(texto, hablante, tiempo, nombreHablante);
-        enviarMensajeFirebase(texto, hablante, nombreHablante, tiempo, timestamp); // ✅ PASAR TIMESTAMP
+        enviarMensajeFirebase(texto, hablante, nombreHablante, tiempo, timestamp);
     }
 }
 
@@ -374,15 +420,16 @@ function mostrarHistorial() {
     }
     
     const ultimas = db.conversaciones.slice(-10).reverse();
-    
     ultimas.forEach(conv => {
         const item = document.createElement('div');
         item.className = 'conversacion-item';
         const nombreMostrar = conv.nombreHablante || `Hablante ${conv.hablante.toUpperCase()}`;
+        
         item.innerHTML = `
             <div class="fecha">${new Date(conv.fecha).toLocaleDateString()} - ${conv.hora}</div>
             <strong>${nombreMostrar}:</strong> ${conv.texto}
         `;
+        
         lista.appendChild(item);
     });
 }
@@ -392,6 +439,8 @@ function limpiarConversacion() {
     document.getElementById('texto-final').innerHTML = '';
     document.getElementById('texto-temporal').innerHTML = '';
     resultadoProcesado = 0;
+    ultimoTextoEnviado = ''; // ✅ NUEVO
+    ultimoTimestampLocal = 0; // ✅ NUEVO
     mostrarAlerta('Conversación limpiada', 'success');
 }
 
@@ -413,7 +462,6 @@ function exportarCSV() {
     }
     
     let csv = 'Fecha,Hora,Hablante,Texto\n';
-    
     db.conversaciones.forEach(conv => {
         const fecha = new Date(conv.fecha).toLocaleDateString();
         const nombreHablante = conv.nombreHablante || conv.hablante;
@@ -442,27 +490,38 @@ function mostrarAlerta(mensaje, tipo) {
     }, 3000);
 }
 
-// Configurar eventos de botones
+// ✅ MEJORADO: Configurar eventos de botones
 function configurarBotones() {
+    // Botón Iniciar
     document.getElementById('iniciar').addEventListener('click', function() {
         if (!isRecording) {
-            document.getElementById('texto-final').innerHTML = '';
-            document.getElementById('texto-temporal').innerHTML = '';
+            // ✅ NUEVO: Resetear todas las variables
             resultadoProcesado = 0;
+            ultimoTextoEnviado = '';
+            ultimoTimestampLocal = 0;
             
-            recognition.start();
-            isRecording = true;
-            this.textContent = '🎤 Grabando...';
-            this.style.background = '#4CAF50';
-            mostrarAlerta('Transcripción iniciada', 'success');
+            try {
+                recognition.start();
+                isRecording = true;
+                this.textContent = '🎤 Grabando...';
+                this.style.background = '#4CAF50';
+                mostrarAlerta('Transcripción iniciada', 'success');
+            } catch (e) {
+                console.error('Error al iniciar:', e);
+                mostrarAlerta('Error al iniciar micrófono', 'error');
+            }
         }
     });
     
+    // Botón Detener
     document.getElementById('detener').addEventListener('click', function() {
         if (isRecording) {
             recognition.stop();
             isRecording = false;
             resultadoProcesado = 0;
+            ultimoTextoEnviado = ''; // ✅ NUEVO
+            ultimoTimestampLocal = 0; // ✅ NUEVO
+            
             document.getElementById('iniciar').textContent = '▶️ Iniciar';
             document.getElementById('iniciar').style.background = '#2196F3';
             document.getElementById('texto-temporal').innerHTML = '';
@@ -470,29 +529,37 @@ function configurarBotones() {
         }
     });
     
+    // Botones de sala
     document.getElementById('conectar-sala').addEventListener('click', conectarSala);
     document.getElementById('desconectar-sala').addEventListener('click', desconectarSala);
+    
+    // Botón cambiar hablante
     document.getElementById('cambiar-hablante').addEventListener('click', cambiarHablante);
     
+    // Botón limpiar
     document.getElementById('limpiar').addEventListener('click', function() {
         if (confirm('¿Estás seguro de limpiar toda la conversación visible?')) {
             limpiarConversacion();
         }
     });
     
+    // Botón guardar
     document.getElementById('guardar').addEventListener('click', function() {
         mostrarHistorial();
         mostrarAlerta('Historial actualizado', 'success');
     });
     
+    // Botón exportar
     document.getElementById('exportar').addEventListener('click', function() {
         exportarCSV();
     });
     
+    // Botón borrar historial
     document.getElementById('borrar-historial').addEventListener('click', function() {
         borrarHistorial();
     });
     
+    // Cambios en nombres de hablantes
     document.getElementById('nombre-a').addEventListener('change', function() {
         guardarNombresHablantes();
         if (hablanteActual === 'a') actualizarIndicadorHablante();
