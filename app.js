@@ -23,8 +23,10 @@ let salaRef = null;
 let presenciaRef = null;
 let miPresenciaKey = null;
 let misTimestamps = new Set();
-let ultimoTextoEnviado = ''; // ✅ NUEVO: Evitar duplicados en móvil
-let ultimoTimestampLocal = 0; // ✅ NUEVO: Control adicional de timing
+let ultimoTextoEnviado = '';
+let ultimoTimestampLocal = 0;
+let textoEnProceso = ''; // ✅ NUEVO: Almacenar texto temporal
+let debounceTimer = null; // ✅ NUEVO: Timer para debounce
 
 // Inicializar cuando carga la página
 document.addEventListener('DOMContentLoaded', function() {
@@ -72,8 +74,10 @@ function conectarSala() {
     document.getElementById('texto-final').innerHTML = '';
     document.getElementById('texto-temporal').innerHTML = '';
     misTimestamps.clear();
-    ultimoTextoEnviado = ''; // ✅ NUEVO
-    ultimoTimestampLocal = 0; // ✅ NUEVO
+    ultimoTextoEnviado = '';
+    ultimoTimestampLocal = 0;
+    textoEnProceso = '';
+    if (debounceTimer) clearTimeout(debounceTimer);
     
     codigoSalaActual = codigoSala;
     salaRef = database.ref('salas/' + codigoSala + '/mensajes');
@@ -157,8 +161,10 @@ function desconectarSala() {
     codigoSalaActual = null;
     miPresenciaKey = null;
     misTimestamps.clear();
-    ultimoTextoEnviado = ''; // ✅ NUEVO
-    ultimoTimestampLocal = 0; // ✅ NUEVO
+    ultimoTextoEnviado = '';
+    ultimoTimestampLocal = 0;
+    textoEnProceso = '';
+    if (debounceTimer) clearTimeout(debounceTimer);
     
     document.getElementById('conectar-sala').style.display = 'inline-block';
     document.getElementById('desconectar-sala').style.display = 'none';
@@ -273,9 +279,15 @@ function inicializarReconocimiento() {
         
         recognition.onresult = manejarResultados;
         
-        // ✅ MEJORADO: Reiniciar con pausa para móvil
         recognition.onend = function() {
             console.log('🔄 Reconocimiento terminado');
+            
+            // ✅ NUEVO: Procesar texto pendiente antes de reiniciar
+            if (textoEnProceso && textoEnProceso.trim()) {
+                procesarTextoFinal(textoEnProceso);
+                textoEnProceso = '';
+            }
+            
             if (isRecording) {
                 setTimeout(() => {
                     try {
@@ -287,7 +299,7 @@ function inicializarReconocimiento() {
                         document.getElementById('iniciar').textContent = '▶️ Iniciar';
                         document.getElementById('iniciar').style.background = '#2196F3';
                     }
-                }, 300); // Pausa de 300ms
+                }, 500); // Pausa de 500ms
             }
         };
         
@@ -295,18 +307,16 @@ function inicializarReconocimiento() {
             console.log('▶️ Reconocimiento iniciado');
         };
         
-        // ✅ MEJORADO: Manejo de errores específicos de móvil
         recognition.onerror = function(event) {
             console.error('❌ Error de reconocimiento:', event.error);
             
-            // No mostrar alertas para errores comunes en móvil
             if (event.error === 'no-speech') {
-                console.log('⚠️ No se detectó voz, continuando...');
+                console.log('⚠️ No se detectó voz');
                 return;
             }
             
             if (event.error === 'aborted') {
-                console.log('⚠️ Reconocimiento abortado, continuando...');
+                console.log('⚠️ Reconocimiento abortado');
                 return;
             }
             
@@ -319,7 +329,7 @@ function inicializarReconocimiento() {
             mostrarAlerta('Error: ' + event.error, 'error');
         };
         
-        console.log('✅ Reconocimiento de voz inicializado correctamente');
+        console.log('✅ Reconocimiento de voz inicializado');
     } else {
         alert('Tu navegador no soporta reconocimiento de voz. Usa Google Chrome.');
     }
@@ -328,45 +338,111 @@ function inicializarReconocimiento() {
 // ✅ MEJORADO: Manejar resultados de transcripción
 function manejarResultados(event) {
     let textoTemporal = '';
+    let textoFinalNuevo = '';
     
-    for (let i = resultadoProcesado; i < event.results.length; i++) {
+    // Procesar todos los resultados
+    for (let i = 0; i < event.results.length; i++) {
         const resultado = event.results[i];
         const texto = resultado[0].transcript.trim();
         
         if (resultado.isFinal) {
-            // ✅ NUEVO: Verificar que no sea duplicado
-            if (texto && texto !== ultimoTextoEnviado && texto.length > 0) {
-                ultimoTextoEnviado = texto;
-                agregarTexto(texto, hablanteActual, true);
-                resultadoProcesado = i + 1;
-            }
+            // ✅ NUEVO: Acumular texto final
+            textoFinalNuevo += texto + ' ';
         } else {
-            textoTemporal += texto;
+            textoTemporal += texto + ' ';
         }
     }
     
-    if (textoTemporal) {
+    // Mostrar texto temporal
+    if (textoTemporal.trim()) {
         document.getElementById('texto-temporal').innerHTML = 
-            `<span class="temporal">🎤 Escuchando: ${textoTemporal}</span>`;
+            `<span class="temporal">🎤 Escuchando: ${textoTemporal.trim()}</span>`;
     } else {
         document.getElementById('texto-temporal').innerHTML = '';
     }
+    
+    // ✅ NUEVO: Solo procesar texto final con debounce
+    if (textoFinalNuevo.trim()) {
+        textoEnProceso = textoFinalNuevo.trim();
+        
+        // Cancelar timer anterior
+        if (debounceTimer) {
+            clearTimeout(debounceTimer);
+        }
+        
+        // ✅ NUEVO: Esperar 1 segundo antes de enviar (debounce)
+        debounceTimer = setTimeout(() => {
+            procesarTextoFinal(textoEnProceso);
+            textoEnProceso = '';
+        }, 1000); // 1 segundo de espera
+    }
 }
 
-// ✅ MEJORADO: Agregar texto a la pantalla
+// ✅ NUEVA FUNCIÓN: Procesar texto final con validaciones
+function procesarTextoFinal(texto) {
+    if (!texto || texto.length === 0) return;
+    
+    // Limpiar espacios extras
+    texto = texto.trim().replace(/\s+/g, ' ');
+    
+    // ✅ Verificar si es muy similar al anterior (contenido)
+    if (ultimoTextoEnviado && esSimilar(texto, ultimoTextoEnviado)) {
+        console.log('⚠️ Texto similar bloqueado:', texto);
+        return;
+    }
+    
+    // ✅ Verificar timing (al menos 800ms de diferencia)
+    const ahora = Date.now();
+    if (ahora - ultimoTimestampLocal < 800) {
+        console.log('⚠️ Mensaje muy rápido bloqueado');
+        return;
+    }
+    
+    console.log('✅ Enviando texto:', texto);
+    ultimoTextoEnviado = texto;
+    ultimoTimestampLocal = ahora;
+    
+    agregarTexto(texto, hablanteActual, true);
+}
+
+// ✅ NUEVA FUNCIÓN: Verificar similitud entre textos
+function esSimilar(texto1, texto2) {
+    // Normalizar textos
+    const t1 = texto1.toLowerCase().trim();
+    const t2 = texto2.toLowerCase().trim();
+    
+    // Si son exactamente iguales
+    if (t1 === t2) return true;
+    
+    // Si uno contiene al otro (ej: "hola" está en "hola hola")
+    if (t1.includes(t2) || t2.includes(t1)) return true;
+    
+    // Si la diferencia es solo unas pocas palabras
+    const palabras1 = t1.split(' ');
+    const palabras2 = t2.split(' ');
+    const diferencia = Math.abs(palabras1.length - palabras2.length);
+    
+    if (diferencia <= 2) {
+        // Contar palabras en común
+        let comunes = 0;
+        palabras1.forEach(p => {
+            if (palabras2.includes(p)) comunes++;
+        });
+        
+        // Si más del 70% son iguales
+        const similitud = comunes / Math.max(palabras1.length, palabras2.length);
+        if (similitud > 0.7) return true;
+    }
+    
+    return false;
+}
+
+// Agregar texto a la pantalla
 function agregarTexto(texto, hablante, guardar = false) {
     const ahora = new Date();
     const tiempo = ahora.toLocaleTimeString();
     const nombreHablante = document.getElementById(`nombre-${hablante}`).value || `Hablante ${hablante.toUpperCase()}`;
     const timestamp = Date.now();
-    
-    // ✅ NUEVO: Evitar duplicados por timing (menos de 500ms)
-    if (timestamp - ultimoTimestampLocal < 500) {
-        console.log('⚠️ Mensaje duplicado bloqueado por timing');
-        return;
-    }
-    
-    ultimoTimestampLocal = timestamp;
     
     const divTexto = document.createElement('div');
     divTexto.className = `hablante hablante-${hablante}`;
@@ -439,8 +515,10 @@ function limpiarConversacion() {
     document.getElementById('texto-final').innerHTML = '';
     document.getElementById('texto-temporal').innerHTML = '';
     resultadoProcesado = 0;
-    ultimoTextoEnviado = ''; // ✅ NUEVO
-    ultimoTimestampLocal = 0; // ✅ NUEVO
+    ultimoTextoEnviado = '';
+    ultimoTimestampLocal = 0;
+    textoEnProceso = '';
+    if (debounceTimer) clearTimeout(debounceTimer);
     mostrarAlerta('Conversación limpiada', 'success');
 }
 
@@ -490,15 +568,17 @@ function mostrarAlerta(mensaje, tipo) {
     }, 3000);
 }
 
-// ✅ MEJORADO: Configurar eventos de botones
+// Configurar eventos de botones
 function configurarBotones() {
     // Botón Iniciar
     document.getElementById('iniciar').addEventListener('click', function() {
         if (!isRecording) {
-            // ✅ NUEVO: Resetear todas las variables
+            // ✅ Resetear TODO
             resultadoProcesado = 0;
             ultimoTextoEnviado = '';
             ultimoTimestampLocal = 0;
+            textoEnProceso = '';
+            if (debounceTimer) clearTimeout(debounceTimer);
             
             try {
                 recognition.start();
@@ -516,11 +596,19 @@ function configurarBotones() {
     // Botón Detener
     document.getElementById('detener').addEventListener('click', function() {
         if (isRecording) {
+            // ✅ Procesar texto pendiente
+            if (textoEnProceso && textoEnProceso.trim()) {
+                procesarTextoFinal(textoEnProceso);
+            }
+            
+            if (debounceTimer) clearTimeout(debounceTimer);
+            
             recognition.stop();
             isRecording = false;
             resultadoProcesado = 0;
-            ultimoTextoEnviado = ''; // ✅ NUEVO
-            ultimoTimestampLocal = 0; // ✅ NUEVO
+            ultimoTextoEnviado = '';
+            ultimoTimestampLocal = 0;
+            textoEnProceso = '';
             
             document.getElementById('iniciar').textContent = '▶️ Iniciar';
             document.getElementById('iniciar').style.background = '#2196F3';
