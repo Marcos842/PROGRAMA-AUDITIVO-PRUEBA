@@ -11,18 +11,26 @@
     <div id="pantalla-principal">
         <h1>🎤 Transcriptor en Vivo - Tiempo Real</h1>
         
-        <!-- ✨ NUEVA SECCIÓN: Código de Sala -->
+        <!-- ✨ Código de Sala con presencia -->
         <div class="sala-compartida">
             <h3>📡 Compartir con otros dispositivos</h3>
             <div class="codigo-sala">
+                <label>Tu nombre:</label>
+                <input type="text" id="mi-nombre" placeholder="Ej: Juan" maxlength="20">
                 <label>Código de Sala:</label>
-                <input type="text" id="codigo-sala" placeholder="Ej: INGRESE TU CODIGO PARA COMUNICARTE CON HA Y HB" maxlength="20">
+                <input type="text" id="codigo-sala" placeholder="Ej: familia2024" maxlength="20">
                 <button id="conectar-sala" class="conectar">🔗 Conectar</button>
                 <button id="desconectar-sala" class="desconectar" style="display:none;">❌ Desconectar</button>
             </div>
             <p class="estado-conexion" id="estado-conexion">⚪ Sin conexión</p>
+            <!-- ✨ Lista de personas conectadas -->
+            <div id="personas-conectadas" style="display:none;">
+                <h4>👥 Personas en la sala:</h4>
+                <ul id="lista-personas"></ul>
+            </div>
         </div>
         
+        <!-- Configuración de Hablantes -->
         <div class="config-hablantes">
             <h3>⚙️ Configurar Hablantes</h3>
             <div class="inputs-hablantes">
@@ -32,6 +40,7 @@
             </div>
         </div>
         
+        <!-- Indicador del hablante actual -->
         <div id="hablante-actual">
             🎤 Hablando ahora: <span id="nombre-actual">Hablante A</span>
         </div>
@@ -64,7 +73,7 @@
         🔔 ALERTA: Sonido detectado
     </div>
     
-    <!-- ✨ FIREBASE SDK -->
+    <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
     
