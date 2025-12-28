@@ -12,7 +12,7 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const database = firebase.database();
 
-// Variables globales
+// Variables globales - TRANSCRIPCIÓN
 let recognition;
 let isRecording = false;
 let db = { conversaciones: [] };
@@ -25,7 +25,21 @@ let misTimestamps = new Set();
 let ultimoTextoEnviado = '';
 let ultimoTimestampLocal = 0;
 let debounceTimer = null;
-let textoAcumulado = ''; // ✅ NUEVO: Para acumular correctamente
+let textoAcumulado = '';
+
+// Variables globales - COMPARTIR PANTALLA
+let localStream = null;
+let peerConnection = null;
+let remoteStream = null;
+let estaCompartiendo = false;
+
+// Configuración WebRTC
+const configuration = {
+    iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' }
+    ]
+};
 
 // Inicializar cuando carga la página
 document.addEventListener('DOMContentLoaded', function() {
@@ -36,7 +50,8 @@ document.addEventListener('DOMContentLoaded', function() {
     configurarBotones();
 });
 
-// Cargar nombre de usuario guardado
+// ========== FUNCIONES DE USUARIO ==========
+
 function cargarNombreUsuario() {
     const nombreGuardado = localStorage.getItem('miNombre');
     if (nombreGuardado) {
@@ -44,7 +59,6 @@ function cargarNombreUsuario() {
     }
 }
 
-// Guardar nombre de usuario
 function guardarNombreUsuario() {
     const nombre = document.getElementById('mi-nombre').value.trim();
     if (nombre) {
@@ -52,7 +66,8 @@ function guardarNombreUsuario() {
     }
 }
 
-// Conectar a sala con presencia
+// ========== FUNCIONES DE SALA ==========
+
 function conectarSala() {
     const codigoSala = document.getElementById('codigo-sala').value.trim();
     const miNombre = document.getElementById('mi-nombre').value.trim();
@@ -104,6 +119,9 @@ function conectarSala() {
         mostrarMensajeRemoto(mensaje);
     });
     
+    // Escuchar pantalla compartida
+    escucharPantallaCompartida();
+    
     // Actualizar UI
     document.getElementById('conectar-sala').style.display = 'none';
     document.getElementById('desconectar-sala').style.display = 'inline-block';
@@ -114,7 +132,6 @@ function conectarSala() {
     mostrarAlerta('Conectado a la sala: ' + codigoSala, 'success');
 }
 
-// Actualizar lista de personas conectadas
 function actualizarListaPersonas(snapshot) {
     const listaPersonas = document.getElementById('lista-personas');
     const estadoConexion = document.getElementById('estado-conexion');
@@ -142,8 +159,12 @@ function actualizarListaPersonas(snapshot) {
     });
 }
 
-// Desconectar de sala
 function desconectarSala() {
+    // Detener compartir pantalla si está activo
+    if (estaCompartiendo) {
+        detenerCompartirPantalla();
+    }
+    
     if (salaRef) {
         salaRef.off();
         salaRef = null;
@@ -176,7 +197,8 @@ function desconectarSala() {
     mostrarAlerta('Desconectado de la sala', 'info');
 }
 
-// Enviar mensaje a Firebase
+// ========== FUNCIONES DE MENSAJES ==========
+
 function enviarMensajeFirebase(texto, hablante, nombreHablante, tiempo, timestamp) {
     if (!salaRef) return;
     
@@ -194,16 +216,13 @@ function enviarMensajeFirebase(texto, hablante, nombreHablante, tiempo, timestam
     salaRef.push(mensaje);
 }
 
-// Mostrar mensaje remoto (CORREGIDO - NO DUPLICAR PROPIOS)
 function mostrarMensajeRemoto(mensaje) {
-    // SI ES MI PROPIO MENSAJE, NO LO MUESTRES DE NUEVO
     if (misTimestamps.has(mensaje.timestamp)) {
         return;
     }
     
     const textoFinal = document.getElementById('texto-final');
     
-    // Evitar duplicados verificando timestamp
     const mensajes = textoFinal.getElementsByClassName('hablante');
     for (let i = 0; i < mensajes.length; i++) {
         if (mensajes[i].getAttribute('data-timestamp') == mensaje.timestamp) {
@@ -223,7 +242,8 @@ function mostrarMensajeRemoto(mensaje) {
     divTexto.scrollIntoView({ behavior: 'smooth' });
 }
 
-// Cargar nombres de hablantes
+// ========== FUNCIONES DE HABLANTES ==========
+
 function cargarNombresHablantes() {
     const nombresGuardados = localStorage.getItem('nombresHablantes');
     if (nombresGuardados) {
@@ -235,7 +255,6 @@ function cargarNombresHablantes() {
     actualizarIndicadorHablante();
 }
 
-// Guardar nombres de hablantes
 function guardarNombresHablantes() {
     const nombres = {
         a: document.getElementById('nombre-a').value || 'Hablante A',
@@ -245,14 +264,12 @@ function guardarNombresHablantes() {
     localStorage.setItem('nombresHablantes', JSON.stringify(nombres));
 }
 
-// Actualizar indicador de hablante actual
 function actualizarIndicadorHablante() {
     const nombreInput = document.getElementById(`nombre-${hablanteActual}`);
     const nombreActual = nombreInput ? nombreInput.value : `Hablante ${hablanteActual.toUpperCase()}`;
     document.getElementById('nombre-actual').textContent = nombreActual;
 }
 
-// Cambiar hablante manualmente
 function cambiarHablante() {
     if (hablanteActual === 'a') {
         hablanteActual = 'b';
@@ -267,7 +284,8 @@ function cambiarHablante() {
     mostrarAlerta(`Ahora habla: ${nombreHablante}`, 'success');
 }
 
-// ✅ MEJORADO: Inicializar reconocimiento de voz
+// ========== FUNCIONES DE RECONOCIMIENTO DE VOZ ==========
+
 function inicializarReconocimiento() {
     if ('webkitSpeechRecognition' in window) {
         recognition = new webkitSpeechRecognition();
@@ -281,7 +299,6 @@ function inicializarReconocimiento() {
         recognition.onend = function() {
             console.log('🔄 Reconocimiento terminado');
             
-            // Procesar texto acumulado antes de reiniciar
             if (textoAcumulado && textoAcumulado.trim()) {
                 procesarTextoFinal(textoAcumulado);
                 textoAcumulado = '';
@@ -304,7 +321,7 @@ function inicializarReconocimiento() {
         
         recognition.onstart = function() {
             console.log('▶️ Reconocimiento iniciado');
-            textoAcumulado = ''; // ✅ Limpiar al iniciar
+            textoAcumulado = '';
         };
         
         recognition.onerror = function(event) {
@@ -335,24 +352,19 @@ function inicializarReconocimiento() {
     }
 }
 
-// ✅ CORREGIDO: Manejar resultados de transcripción
 function manejarResultados(event) {
-    // ✅ TOMAR SOLO EL ÚLTIMO RESULTADO (el más reciente)
     const ultimoIndice = event.results.length - 1;
     const ultimoResultado = event.results[ultimoIndice];
     const texto = ultimoResultado[0].transcript;
     
     if (ultimoResultado.isFinal) {
-        // ✅ Es texto FINAL, acumular para enviar
         console.log('📝 Texto final recibido:', texto);
         textoAcumulado = texto;
         
-        // Cancelar timer anterior
         if (debounceTimer) {
             clearTimeout(debounceTimer);
         }
         
-        // Esperar 1 segundo antes de procesar
         debounceTimer = setTimeout(() => {
             if (textoAcumulado && textoAcumulado.trim()) {
                 procesarTextoFinal(textoAcumulado);
@@ -360,30 +372,24 @@ function manejarResultados(event) {
             }
         }, 1000);
         
-        // Limpiar texto temporal
         document.getElementById('texto-temporal').innerHTML = '';
         
     } else {
-        // ✅ Es texto TEMPORAL, solo mostrar
         document.getElementById('texto-temporal').innerHTML = 
             `<span class="temporal">🎤 Escuchando: ${texto}</span>`;
     }
 }
 
-// ✅ MEJORADA: Procesar texto final con validaciones
 function procesarTextoFinal(texto) {
     if (!texto || texto.length === 0) return;
     
-    // Limpiar espacios extras
     texto = texto.trim().replace(/\s+/g, ' ');
     
-    // ✅ Verificar si es muy similar al anterior
     if (ultimoTextoEnviado && esSimilar(texto, ultimoTextoEnviado)) {
         console.log('⚠️ Texto similar bloqueado:', texto);
         return;
     }
     
-    // ✅ Verificar timing (al menos 1 segundo de diferencia)
     const ahora = Date.now();
     if (ahora - ultimoTimestampLocal < 1000) {
         console.log('⚠️ Mensaje muy rápido bloqueado');
@@ -397,18 +403,13 @@ function procesarTextoFinal(texto) {
     agregarTexto(texto, hablanteActual, true);
 }
 
-// ✅ Verificar similitud entre textos
 function esSimilar(texto1, texto2) {
     const t1 = texto1.toLowerCase().trim();
     const t2 = texto2.toLowerCase().trim();
     
-    // Si son exactamente iguales
     if (t1 === t2) return true;
-    
-    // Si uno contiene al otro
     if (t1.includes(t2) || t2.includes(t1)) return true;
     
-    // Comparar palabras
     const palabras1 = t1.split(' ');
     const palabras2 = t2.split(' ');
     const diferencia = Math.abs(palabras1.length - palabras2.length);
@@ -426,7 +427,6 @@ function esSimilar(texto1, texto2) {
     return false;
 }
 
-// Agregar texto a la pantalla
 function agregarTexto(texto, hablante, guardar = false) {
     const ahora = new Date();
     const tiempo = ahora.toLocaleTimeString();
@@ -450,7 +450,8 @@ function agregarTexto(texto, hablante, guardar = false) {
     }
 }
 
-// Guardar transcripción en localStorage
+// ========== FUNCIONES DE HISTORIAL ==========
+
 function guardarTranscripcion(texto, hablante, tiempo, nombreHablante) {
     const registro = {
         id: Date.now(),
@@ -465,7 +466,6 @@ function guardarTranscripcion(texto, hablante, tiempo, nombreHablante) {
     localStorage.setItem('transcripciones', JSON.stringify(db.conversaciones));
 }
 
-// Cargar historial del localStorage
 function cargarHistorial() {
     const guardado = localStorage.getItem('transcripciones');
     if (guardado) {
@@ -474,7 +474,6 @@ function cargarHistorial() {
     }
 }
 
-// Mostrar historial en pantalla
 function mostrarHistorial() {
     const lista = document.getElementById('lista-conversaciones');
     lista.innerHTML = '';
@@ -499,7 +498,6 @@ function mostrarHistorial() {
     });
 }
 
-// Limpiar conversación
 function limpiarConversacion() {
     document.getElementById('texto-final').innerHTML = '';
     document.getElementById('texto-temporal').innerHTML = '';
@@ -510,7 +508,6 @@ function limpiarConversacion() {
     mostrarAlerta('Conversación limpiada', 'success');
 }
 
-// Borrar historial
 function borrarHistorial() {
     if (confirm('¿Estás seguro de borrar TODO el historial guardado? Esta acción no se puede deshacer.')) {
         db.conversaciones = [];
@@ -520,7 +517,6 @@ function borrarHistorial() {
     }
 }
 
-// Exportar a CSV
 function exportarCSV() {
     if (db.conversaciones.length === 0) {
         alert('No hay conversaciones para exportar');
@@ -544,7 +540,179 @@ function exportarCSV() {
     mostrarAlerta('Archivo CSV descargado exitosamente', 'success');
 }
 
-// Mostrar alertas
+// ========== FUNCIONES DE COMPARTIR PANTALLA ==========
+
+async function iniciarCompartirPantalla() {
+    if (!codigoSalaActual) {
+        alert('Debes conectarte a una sala primero');
+        return;
+    }
+    
+    try {
+        localStream = await navigator.mediaDevices.getDisplayMedia({
+            video: {
+                cursor: 'always',
+                displaySurface: 'monitor'
+            },
+            audio: false
+        });
+        
+        document.getElementById('video-local').srcObject = localStream;
+        document.getElementById('contenedor-video-local').style.display = 'block';
+        
+        await crearOferta();
+        
+        estaCompartiendo = true;
+        document.getElementById('btn-compartir').style.display = 'none';
+        document.getElementById('btn-detener-compartir').style.display = 'inline-block';
+        
+        localStream.getVideoTracks()[0].onended = () => {
+            detenerCompartirPantalla();
+        };
+        
+        console.log('✅ Compartiendo pantalla');
+        mostrarAlerta('Compartiendo pantalla en la sala', 'success');
+        
+    } catch (error) {
+        console.error('❌ Error al compartir pantalla:', error);
+        mostrarAlerta('Error: No se pudo acceder a la pantalla', 'error');
+    }
+}
+
+function detenerCompartirPantalla() {
+    if (localStream) {
+        localStream.getTracks().forEach(track => track.stop());
+        localStream = null;
+    }
+    
+    if (peerConnection) {
+        peerConnection.close();
+        peerConnection = null;
+    }
+    
+    document.getElementById('video-local').srcObject = null;
+    document.getElementById('contenedor-video-local').style.display = 'none';
+    document.getElementById('btn-compartir').style.display = 'inline-block';
+    document.getElementById('btn-detener-compartir').style.display = 'none';
+    
+    if (codigoSalaActual) {
+        database.ref('salas/' + codigoSalaActual + '/compartiendo').remove();
+        database.ref('salas/' + codigoSalaActual + '/ice-candidates').remove();
+    }
+    
+    estaCompartiendo = false;
+    mostrarAlerta('Dejaste de compartir pantalla', 'info');
+}
+
+async function crearOferta() {
+    peerConnection = new RTCPeerConnection(configuration);
+    
+    localStream.getTracks().forEach(track => {
+        peerConnection.addTrack(track, localStream);
+    });
+    
+    peerConnection.onicecandidate = (event) => {
+        if (event.candidate && codigoSalaActual) {
+            database.ref('salas/' + codigoSalaActual + '/ice-candidates').push({
+                candidate: event.candidate.toJSON(),
+                type: 'offer',
+                timestamp: Date.now()
+            });
+        }
+    };
+    
+    const offer = await peerConnection.createOffer();
+    await peerConnection.setLocalDescription(offer);
+    
+    database.ref('salas/' + codigoSalaActual + '/compartiendo').set({
+        offer: {
+            type: offer.type,
+            sdp: offer.sdp
+        },
+        usuario: document.getElementById('mi-nombre').value,
+        timestamp: Date.now()
+    });
+}
+
+async function verPantallaCompartida(offerData) {
+    try {
+        peerConnection = new RTCPeerConnection(configuration);
+        
+        peerConnection.ontrack = (event) => {
+            if (!remoteStream) {
+                remoteStream = new MediaStream();
+                document.getElementById('video-remoto').srcObject = remoteStream;
+                document.getElementById('contenedor-video-remoto').style.display = 'block';
+            }
+            remoteStream.addTrack(event.track);
+        };
+        
+        peerConnection.onicecandidate = (event) => {
+            if (event.candidate && codigoSalaActual) {
+                database.ref('salas/' + codigoSalaActual + '/ice-candidates').push({
+                    candidate: event.candidate.toJSON(),
+                    type: 'answer',
+                    timestamp: Date.now()
+                });
+            }
+        };
+        
+        await peerConnection.setRemoteDescription(new RTCSessionDescription(offerData.offer));
+        
+        const answer = await peerConnection.createAnswer();
+        await peerConnection.setLocalDescription(answer);
+        
+        database.ref('salas/' + codigoSalaActual + '/respuesta').set({
+            answer: {
+                type: answer.type,
+                sdp: answer.sdp
+            },
+            timestamp: Date.now()
+        });
+        
+        mostrarAlerta('Viendo pantalla compartida de ' + offerData.usuario, 'success');
+        
+    } catch (error) {
+        console.error('❌ Error al ver pantalla:', error);
+    }
+}
+
+function escucharPantallaCompartida() {
+    if (!codigoSalaActual) return;
+    
+    database.ref('salas/' + codigoSalaActual + '/compartiendo').on('value', (snapshot) => {
+        const data = snapshot.val();
+        const miNombre = document.getElementById('mi-nombre').value;
+        
+        if (data && data.usuario !== miNombre) {
+            verPantallaCompartida(data);
+        } else if (!data) {
+            document.getElementById('contenedor-video-remoto').style.display = 'none';
+            if (remoteStream) {
+                remoteStream.getTracks().forEach(track => track.stop());
+                remoteStream = null;
+            }
+            if (peerConnection && !estaCompartiendo) {
+                peerConnection.close();
+                peerConnection = null;
+            }
+        }
+    });
+    
+    database.ref('salas/' + codigoSalaActual + '/ice-candidates').on('child_added', async (snapshot) => {
+        const data = snapshot.val();
+        if (peerConnection && data.candidate) {
+            try {
+                await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
+            } catch (error) {
+                console.error('Error al agregar ICE candidate:', error);
+            }
+        }
+    });
+}
+
+// ========== ALERTAS ==========
+
 function mostrarAlerta(mensaje, tipo) {
     const alerta = document.getElementById('alertas-sonido');
     alerta.textContent = mensaje;
@@ -556,7 +724,8 @@ function mostrarAlerta(mensaje, tipo) {
     }, 3000);
 }
 
-// Configurar eventos de botones
+// ========== CONFIGURAR BOTONES ==========
+
 function configurarBotones() {
     // Botón Iniciar
     document.getElementById('iniciar').addEventListener('click', function() {
@@ -582,7 +751,6 @@ function configurarBotones() {
     // Botón Detener
     document.getElementById('detener').addEventListener('click', function() {
         if (isRecording) {
-            // Procesar texto pendiente
             if (textoAcumulado && textoAcumulado.trim()) {
                 procesarTextoFinal(textoAcumulado);
             }
@@ -605,6 +773,10 @@ function configurarBotones() {
     // Botones de sala
     document.getElementById('conectar-sala').addEventListener('click', conectarSala);
     document.getElementById('desconectar-sala').addEventListener('click', desconectarSala);
+    
+    // Botones de pantalla compartida
+    document.getElementById('btn-compartir').addEventListener('click', iniciarCompartirPantalla);
+    document.getElementById('btn-detener-compartir').addEventListener('click', detenerCompartirPantalla);
     
     // Botón cambiar hablante
     document.getElementById('cambiar-hablante').addEventListener('click', cambiarHablante);
