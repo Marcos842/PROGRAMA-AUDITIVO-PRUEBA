@@ -3,18 +3,43 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Transcriptor para Personas Sordas</title>
+    <title>Transcriptor para Personas Sordas - Tiempo Real</title>
     
-    <!-- Vincular archivo CSS -->
     <link rel="stylesheet" href="estilo.css">
 </head>
 <body>
     <div id="pantalla-principal">
-        <h1>🎤 Transcriptor en Vivo</h1>
+        <h1>🎤 Transcriptor en Vivo - Tiempo Real</h1>
+        
+        <!-- ✨ NUEVA SECCIÓN: Código de Sala -->
+        <div class="sala-compartida">
+            <h3>📡 Compartir con otros dispositivos</h3>
+            <div class="codigo-sala">
+                <label>Código de Sala:</label>
+                <input type="text" id="codigo-sala" placeholder="Ej: INGRESE TU CODIGO PARA COMUNICARTE CON HA Y HB" maxlength="20">
+                <button id="conectar-sala" class="conectar">🔗 Conectar</button>
+                <button id="desconectar-sala" class="desconectar" style="display:none;">❌ Desconectar</button>
+            </div>
+            <p class="estado-conexion" id="estado-conexion">⚪ Sin conexión</p>
+        </div>
+        
+        <div class="config-hablantes">
+            <h3>⚙️ Configurar Hablantes</h3>
+            <div class="inputs-hablantes">
+                <input type="text" id="nombre-a" placeholder="Nombre Hablante A" value="Hablante A">
+                <input type="text" id="nombre-b" placeholder="Nombre Hablante B" value="Hablante B">
+                <input type="text" id="nombre-c" placeholder="Nombre Hablante C" value="Hablante C">
+            </div>
+        </div>
+        
+        <div id="hablante-actual">
+            🎤 Hablando ahora: <span id="nombre-actual">Hablante A</span>
+        </div>
         
         <div class="controles">
             <button id="iniciar">▶️ Iniciar</button>
             <button id="detener" class="detener">⏹️ Detener</button>
+            <button id="cambiar-hablante" class="cambiar">🔄 Cambiar Hablante</button>
             <button id="limpiar" class="limpiar">🗑️ Limpiar</button>
             <button id="guardar">💾 Guardar</button>
             <button id="exportar">📥 Exportar CSV</button>
@@ -39,7 +64,10 @@
         🔔 ALERTA: Sonido detectado
     </div>
     
-    <!-- Vincular archivo JavaScript -->
+    <!-- ✨ FIREBASE SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+    
     <script src="app.js"></script>
 </body>
 </html>
